@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Compass, LogOut, PanelLeft, Sparkles } from "lucide-react";
+import { Archive, BookOpen, Compass, LogOut, PanelLeft, Sparkles } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,6 +30,7 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: Compass, label: "New reading", path: "/" },
   { icon: Archive, label: "Reading archive", path: "/history" },
+  { icon: BookOpen, label: "Symbol library", path: "/library" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

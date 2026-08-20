@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { createReading, getReadingForUser, getSharedReading, listReadingsForUser, shareReading } from "./db";
+import { I_CHING_HEXAGRAMS, TAROT_DECK } from "./divination-library";
 import { createDivination, extractRepositoryMetrics } from "./esoteric";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -19,6 +20,9 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+  divination: router({
+    library: publicProcedure.query(() => ({ tarot: TAROT_DECK, hexagrams: I_CHING_HEXAGRAMS })),
   }),
   readings: router({
     create: protectedProcedure

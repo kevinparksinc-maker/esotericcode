@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import History from "./pages/History";
 import Home from "./pages/Home";
+import Library from "./pages/Library";
 import Reading from "./pages/Reading";
 import SharedReading from "./pages/SharedReading";
 
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/reading/:id"} component={Reading} />
       <Route path={"/history"} component={History} />
+      <Route path={"/library"} component={Library} />
       <Route path={"/share/:shareSlug"} component={SharedReading} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

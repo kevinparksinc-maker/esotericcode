@@ -1,5 +1,7 @@
 import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
 
+import { drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
+
 type GitHubTreeEntry = { path: string; type: "blob" | "tree"; size?: number };
 type GitHubRepo = {
   name: string;
@@ -217,21 +219,11 @@ function mapIChing(metrics: RepositoryMetrics): IChingReading {
 }
 
 export function createDivination(metrics: RepositoryMetrics): { tarot: TarotCard[]; iching: IChingReading; narrative: string } {
-  const foundation = metrics.contributorCount >= 8
-    ? cards.world(`${metrics.contributorCount} contributors form a substantial collaborative field.`)
-    : metrics.testRatio >= 0.18 && metrics.complexityLevel !== "high"
-      ? cards.temperance(`${percent(metrics.testRatio)} of source files are recognizable tests, with ${metrics.complexityLevel} structural complexity.`)
-      : cards.emperor(`${metrics.directoryDepth}-level directory depth and a ${metrics.primaryLanguage ?? "polyglot"} core reveal an established structure.`);
-  const fracture = metrics.complexityLevel === "high"
-    ? cards.tower(metrics.complexitySignals.slice(0, 2).join(" "))
-    : metrics.testRatio < 0.06 && metrics.sourceFileCount > 12
-      ? cards.pentacles(`Only ${percent(metrics.testRatio)} of ${formatNumber(metrics.sourceFileCount)} source files are recognizable tests.`)
-      : cards.death(`${metrics.recentCommitCount} commits in the past 30 days show a system actively shedding and reshaping its form.`);
-  const passage = metrics.recentCommitCount >= 14
-    ? cards.magician(`${metrics.recentCommitCount} recent commits indicate enough momentum to turn repeated effort into a focused tool.`)
-    : cards.death(`The repository’s current rhythm favors intentional pruning over unbounded accumulation.`);
-  const tarot = [foundation, fracture, passage];
-  const iching = mapIChing(metrics);
+  const tarot = drawCompleteTarot(metrics);
+  const iching = selectCompleteHexagram(metrics);
+  const foundation = tarot[0];
+  const fracture = tarot[1];
+  const passage = tarot[2];
   const dominantLanguage = metrics.primaryLanguage ? `${metrics.primaryLanguage} is the dominant tongue` : "The repository speaks in several tongues";
   const narrative = `${metrics.name} arrives as a living system of ${formatNumber(metrics.fileCount)} files. ${dominantLanguage}, while ${metrics.contributorCount === 1 ? "one contributor holds the primary thread" : `${metrics.contributorCount} contributors shape its orbit`}. ${foundation.cardName} reveals the strength beneath the surface: ${foundation.mysticalInterpretation} Yet ${fracture.cardName} stands at the threshold, because ${fracture.metricTrigger.toLowerCase()} ${iching.name} offers the governing counsel: ${iching.developerInterpretation} Let the next commit be an act of chosen clarity—${passage.technicalActionable.toLowerCase()}`;
   return { tarot, iching, narrative };

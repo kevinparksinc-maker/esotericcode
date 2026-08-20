@@ -38,6 +38,7 @@ export type IChingReading = {
   number: number;
   name: string;
   chineseName: string;
+  symbol?: string;
   classicalText: string;
   developerInterpretation: string;
   trigger: string;

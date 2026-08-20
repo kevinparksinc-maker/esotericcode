@@ -11,3 +11,10 @@
 - [x] Build the authenticated reading history dashboard and a public, shareable reading page.
 - [x] Add unit tests for repository parsing and deterministic divination mapping.
 - [x] Verify the UI on desktop and mobile, validate build and test output, and save a delivery checkpoint.
+- [x] Define complete 78-card Tarot and 64-hexagram I Ching catalog structures with developer-oriented meanings.
+- [x] Add all Major Arcana and Minor Arcana cards to the deterministic EsotericCode mapping library.
+- [x] Add all 64 I Ching hexagrams, including traditional names, classical text excerpts, and developer interpretations.
+- [x] Upgrade reading selection so repository signals choose varied cards and hexagrams from the complete libraries.
+- [x] Add integrity and selection tests that verify the full Tarot deck, all 64 hexagrams, and grounded mapping behavior.
+- [x] Validate the expanded experience and save a delivery checkpoint.
+- [x] Add an in-app library explorer that visibly presents all 78 Tarot cards and all 64 I Ching hexagrams.

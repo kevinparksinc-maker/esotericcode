@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDivination, parseGitHubRepositoryUrl } from "./esoteric";
+import { I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
 import type { RepositoryMetrics } from "@shared/esoteric";
 
 const baseMetrics: RepositoryMetrics = {
@@ -41,5 +42,22 @@ describe("EsotericCode mapping", () => {
   it("draws The World for a broad contributor field", () => {
     const result = createDivination({ ...baseMetrics, contributorCount: 12 });
     expect(result.tarot[0]?.cardName).toBe("The World");
+  });
+
+  it("contains the complete 78-card Tarot deck and all 64 canonical hexagrams", () => {
+    expect(TAROT_DECK).toHaveLength(78);
+    expect(new Set(TAROT_DECK.map(card => card.id)).size).toBe(78);
+    expect(TAROT_DECK.filter(card => card.suit === "major")).toHaveLength(22);
+    expect(TAROT_DECK.filter(card => card.suit !== "major")).toHaveLength(56);
+    expect(I_CHING_HEXAGRAMS).toHaveLength(64);
+    expect(I_CHING_HEXAGRAMS.map(hexagram => hexagram.number)).toEqual(Array.from({ length: 64 }, (_, index) => index + 1));
+  });
+
+  it("varies complete-library draws across materially different repository signals", () => {
+    const stable = drawCompleteTarot({ ...baseMetrics, repositoryUrl: "https://github.com/acme/stable", testRatio: 0.35, contributorCount: 2, recentCommitCount: 2 });
+    const active = drawCompleteTarot({ ...baseMetrics, repositoryUrl: "https://github.com/acme/active", recentCommitCount: 22, contributorCount: 10, sourceFileCount: 400, complexityLevel: "moderate", complexityScore: 3 });
+    expect(stable.map(card => card.cardName)).not.toEqual(active.map(card => card.cardName));
+    expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/active", recentCommitCount: 18 }).number).toBe(1);
+    expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/quiet", recentCommitCount: 1, testRatio: 0.1, testFileCount: 5 }).number).toBe(2);
   });
 });
