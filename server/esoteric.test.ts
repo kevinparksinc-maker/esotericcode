@@ -60,4 +60,20 @@ describe("EsotericCode mapping", () => {
     expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/active", recentCommitCount: 18 }).number).toBe(1);
     expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/quiet", recentCommitCount: 1, testRatio: 0.1, testFileCount: 5 }).number).toBe(2);
   });
+
+  it("supplies upright and reversed expressions for the complete deck", () => {
+    expect(TAROT_DECK.every(card => Boolean(card.reversedInterpretation && card.reversedAction))).toBe(true);
+    const stressed = createDivination({
+      ...baseMetrics,
+      repositoryUrl: "https://github.com/acme/stressed",
+      complexityLevel: "high",
+      complexityScore: 6,
+      testRatio: 0.02,
+      testFileCount: 1,
+      recentCommitCount: 17,
+    });
+    expect(stressed.tarot[1]).toMatchObject({ cardName: "The Tower", orientation: "reversed" });
+    expect(stressed.tarot[1]?.orientationEvidence).toContain("Reversed:");
+    expect(stressed.tarot.every(card => card.orientation === "upright" || card.orientation === "reversed")).toBe(true);
+  });
 });

@@ -1,4 +1,5 @@
 export type ComplexityLevel = "low" | "moderate" | "high";
+export type TarotOrientation = "upright" | "reversed";
 
 export type RepositoryMetrics = {
   repositoryUrl: string;
@@ -32,6 +33,8 @@ export type TarotCard = {
   metricTrigger: string;
   mysticalInterpretation: string;
   technicalActionable: string;
+  orientation?: TarotOrientation;
+  orientationEvidence?: string;
 };
 
 export type IChingReading = {

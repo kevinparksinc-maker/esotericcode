@@ -18,3 +18,7 @@
 - [x] Add integrity and selection tests that verify the full Tarot deck, all 64 hexagrams, and grounded mapping behavior.
 - [x] Validate the expanded experience and save a delivery checkpoint.
 - [x] Add an in-app library explorer that visibly presents all 78 Tarot cards and all 64 I Ching hexagrams.
+- [x] Define orientation metadata and deterministic reversal conditions for every drawn Tarot card.
+- [x] Generate reversed-card interpretations and technical actions grounded in repository metrics.
+- [x] Display upright and reversed orientation labels and visual states in reading results and the Symbol Library.
+- [x] Add orientation selection tests, validate the updated UI, and save a delivery checkpoint.

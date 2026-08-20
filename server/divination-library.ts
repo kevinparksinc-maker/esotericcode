@@ -2,7 +2,7 @@ import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoter
 
 export type SignalKey = "activity" | "change" | "stability" | "testing" | "complexity" | "risk" | "collaboration" | "scale" | "maintenance" | "craft" | "growth";
 type Profile = Record<SignalKey, number>;
-type TarotEntry = Omit<TarotCard, "position" | "metricTrigger"> & { id: string; affinities: SignalKey[] };
+type TarotEntry = Omit<TarotCard, "position" | "metricTrigger" | "orientation" | "orientationEvidence"> & { id: string; affinities: SignalKey[]; reversedInterpretation?: string; reversedAction?: string };
 type HexagramEntry = Omit<IChingReading, "trigger"> & { affinities: SignalKey[] };
 
 const roman = ["0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI"];
@@ -71,7 +71,44 @@ const MINOR_ARCANA: TarotEntry[] = minorSuits.flatMap(suit => minorRanks.map(([r
   technicalActionable: action,
 })));
 
-export const TAROT_DECK: TarotEntry[] = [...MAJOR_ARCANA, ...MINOR_ARCANA];
+const majorReversals: Record<string, [string, string]> = {
+  "The Fool": ["An unexamined leap risks becoming avoidable rework. Freedom needs one conscious boundary.", "Write down the assumption that would make the experiment unsafe, then add a small guardrail."],
+  "The Magician": ["Capability is present but scattered, overextended, or being used without enough focus.", "Reduce competing abstractions and make one tool or interface the deliberate source of truth."],
+  "The High Priestess": ["Important knowledge is obscured, deferred, or being mistaken for intuition.", "Replace the hunch with logs, documentation, and a concrete question that can be answered."],
+  "The Empress": ["Growth is becoming excess: the system is being fed faster than it can be tended.", "Prune optional surface area and restore care to the maintainer and user experience."],
+  "The Emperor": ["Structure has hardened into control, making necessary adaptation difficult.", "Loosen one outdated convention or boundary while preserving the principles it was meant to protect."],
+  "The Hierophant": ["Convention is being followed without reflection, or shared practice is missing entirely.", "Revisit the rule’s purpose and encode only the practices that still serve the current system."],
+  "The Lovers": ["A choice has been avoided, leaving incompatible directions entangled.", "Name the architectural fork and decide which relationship, dependency, or contract must change."],
+  "The Chariot": ["Momentum is pulling in more than one direction; force alone will not create progress.", "Stop parallel drift, choose one near-term outcome, and sequence dependent work behind it."],
+  "Strength": ["Patience is thinning or a fragile area is being handled with unnecessary force.", "Slow the change, strengthen tests, and restore a calm feedback loop before pushing further."],
+  "The Hermit": ["Isolation has become a blind spot; insight is not reaching the people who need it.", "Share the audit, ask for a second perspective, and turn private understanding into durable documentation."],
+  "Wheel of Fortune": ["Change is being treated as random fate instead of a condition that can be prepared for.", "Identify volatile dependencies and add contingencies instead of hoping the cycle turns favorably."],
+  "Justice": ["The evidence and the decision are out of balance, or responsibility is being blurred.", "Define the measurable acceptance criteria and make the ownership of the risk explicit."],
+  "The Hanged Man": ["The pause has become paralysis or sacrifice without new perspective.", "Set a deadline for discovery, then convert the insight into a bounded decision or experiment."],
+  "Death": ["An obsolete form is being kept alive, preventing the next system from taking root.", "Commit to a deprecation date, migration path, and removal of the remaining dead branch."],
+  "Temperance": ["Balance has tipped into indecision, or integration is happening without enough discipline.", "Choose the smallest coherent integration point and verify it before adding the next ingredient."],
+  "The Devil": ["A shortcut, dependency, or legacy fear is exerting more control than it should.", "Make the lock-in visible and build one practical escape route instead of accepting it as permanent."],
+  "The Tower": ["The warning signs are already visible, but the destabilizing work is being postponed.", "Contain the critical path immediately; decouple, test, and replace the brittle boundary before it fails under load."],
+  "The Star": ["Recovery is possible, but optimism is outrunning the evidence needed to sustain it.", "Pair the renewal plan with a measurable quality signal and a modest, observable milestone."],
+  "The Moon": ["Ambiguity is generating false confidence or anxiety, obscuring the actual state of the system.", "Instrument the unknown path and delay irreversible changes until the behavior is observable."],
+  "The Sun": ["Visibility is exposing a gap between the story and the system’s real behavior.", "Treat the revealed discrepancy as useful feedback and bring documentation, tests, and behavior back into alignment."],
+  "Judgement": ["The system is repeating an old decision without completing the review it now requires.", "Audit the legacy choice, document the new conclusion, and retire the unresolved ambiguity."],
+  "The World": ["A broad collaboration field is losing coherence at its edges.", "Clarify ownership, contribution paths, and system boundaries before additional coordination cost accumulates."],
+};
+
+function reversalFor(card: TarotEntry) {
+  const major = majorReversals[card.cardName];
+  if (major) return { reversedInterpretation: major[0], reversedAction: major[1] };
+  const suitWarning: Record<Exclude<TarotCard["suit"], "major">, string> = {
+    wands: "Initiative is becoming scattered or overextended.", cups: "Communication and trust are not flowing as clearly as they appear.", swords: "Reasoning is turning into friction, avoidance, or unnecessary conflict.", pentacles: "The practical foundation is being neglected or carrying more weight than it can sustain.",
+  };
+  return {
+    reversedInterpretation: `${suitWarning[card.suit as Exclude<TarotCard["suit"], "major">]} The card’s invitation is present, but its energy is blocked, excessive, or turned inward.`,
+    reversedAction: "Reduce the immediate pressure, make the hidden constraint visible, and take one smaller action that restores healthy movement.",
+  };
+}
+
+export const TAROT_DECK: TarotEntry[] = [...MAJOR_ARCANA, ...MINOR_ARCANA].map(card => ({ ...card, ...reversalFor(card) }));
 
 type HexRow = [number, string, string, string, string, SignalKey[]];
 const hexRows: HexRow[] = [
@@ -180,8 +217,28 @@ function evidenceFor(position: string, metrics: RepositoryMetrics) {
   return `${metrics.recentCommitCount} commits in the past 30 days and ${metrics.averageCommitsPerWeek} commits per week reveal the system’s current direction.`;
 }
 
+function drawOrientation(entry: TarotEntry, position: string, metrics: RepositoryMetrics): TarotCard["orientation"] {
+  const profile = createSignalProfile(metrics);
+  const pressure = profile.risk * .34 + profile.complexity * .2 + profile.maintenance * .12 + (1 - profile.testing) * .22 + (position === "The Fracture" ? .22 : position === "The Passage" ? .07 : -.08);
+  const deterministicThreshold = hash(`${metrics.repositoryUrl}:${entry.id}:${position}:orientation`) % 100;
+  return pressure >= .56 || deterministicThreshold < Math.round(pressure * 34) ? "reversed" : "upright";
+}
+
+function orientationEvidence(orientation: TarotCard["orientation"], position: string, metrics: RepositoryMetrics) {
+  if (orientation === "upright") return `Upright: ${position.toLowerCase()} signals are expressing this archetype with sufficient support and clarity.`;
+  if (position === "The Fracture") return `Reversed: high pressure is blocking the card’s healthy expression; complexity is ${metrics.complexityLevel} and the test signal is ${Math.round(metrics.testRatio * 100)}%.`;
+  return `Reversed: the repository’s current risk, maintenance, and feedback signals indicate this archetype is constrained, excessive, or turned inward.`;
+}
+
 function toDraw(entry: TarotEntry, position: string, metrics: RepositoryMetrics): TarotCard {
-  return { cardName: entry.cardName, cardNumber: entry.cardNumber, suit: entry.suit, mysticalInterpretation: entry.mysticalInterpretation, technicalActionable: entry.technicalActionable, position, metricTrigger: evidenceFor(position, metrics) };
+  const orientation = drawOrientation(entry, position, metrics);
+  const isReversed = orientation === "reversed";
+  return {
+    cardName: entry.cardName, cardNumber: entry.cardNumber, suit: entry.suit,
+    mysticalInterpretation: isReversed ? entry.reversedInterpretation ?? entry.mysticalInterpretation : entry.mysticalInterpretation,
+    technicalActionable: isReversed ? entry.reversedAction ?? entry.technicalActionable : entry.technicalActionable,
+    position, metricTrigger: evidenceFor(position, metrics), orientation, orientationEvidence: orientationEvidence(orientation, position, metrics),
+  };
 }
 
 export function drawCompleteTarot(metrics: RepositoryMetrics): TarotCard[] {
