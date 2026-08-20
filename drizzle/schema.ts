@@ -1,4 +1,5 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import type { IChingReading, RepositoryMetrics, TarotCard } from "../shared/esoteric";
 
 /**
  * Core user table backing auth flow.
@@ -25,4 +26,20 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const readings = mysqlTable("readings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  repositoryUrl: varchar("repositoryUrl", { length: 512 }).notNull(),
+  repositoryOwner: varchar("repositoryOwner", { length: 128 }).notNull(),
+  repositoryName: varchar("repositoryName", { length: 256 }).notNull(),
+  shareSlug: varchar("shareSlug", { length: 24 }).notNull().unique(),
+  isShared: boolean("isShared").notNull().default(false),
+  metrics: json("metrics").$type<RepositoryMetrics>().notNull(),
+  tarot: json("tarot").$type<TarotCard[]>().notNull(),
+  iching: json("iching").$type<IChingReading>().notNull(),
+  narrative: text("narrative").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Reading = typeof readings.$inferSelect;
+export type InsertReading = typeof readings.$inferInsert;

@@ -1,0 +1,14 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import DashboardLayout from "@/components/DashboardLayout";
+import { OracleMark } from "@/components/OracleMark";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
+import { ArrowUpRight, BookOpen, Compass, Loader2, Sparkles } from "lucide-react";
+import { Link } from "wouter";
+
+export default function History() { return <DashboardLayout><HistoryContent /></DashboardLayout>; }
+function HistoryContent() {
+  const { isAuthenticated } = useAuth();
+  const { data: readings, isLoading } = trpc.readings.history.useQuery(undefined, { enabled: isAuthenticated });
+  return <div className="archive-page mx-auto max-w-6xl"><div className="md:hidden"><OracleMark /></div><div className="mt-8 flex flex-col justify-between gap-5 md:mt-2 md:flex-row md:items-end"><div><p className="eyebrow">Private archive</p><h1 className="mt-3 font-display text-5xl text-amber-50">Your readings</h1><p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">Every repository consultation, held in one quiet constellation.</p></div><Link href="/"><Button className="mystic-button"><Compass className="mr-2 h-4 w-4" />Begin a reading</Button></Link></div>{isLoading ? <div className="flex h-72 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-amber-200" /></div> : readings?.length ? <div className="mt-10 grid gap-4">{readings.map(reading => <Link key={reading.id} href={`/reading/${reading.id}`} className="archive-item focus-ring"><div className="flex min-w-0 items-center gap-4"><div className="archive-seal">{reading.iching.number}</div><div className="min-w-0"><p className="font-display text-xl text-amber-50">{reading.repositoryOwner}<span className="text-violet-300">/</span>{reading.repositoryName}</p><p className="mt-1 truncate font-mono text-[11px] text-slate-500">{reading.metrics.primaryLanguage || "POLYGLOT"} · {reading.metrics.fileCount.toLocaleString()} FILES · {new Date(reading.createdAt).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><Badge variant="outline" className="hidden border-violet-300/25 bg-violet-400/5 font-mono text-[10px] font-normal text-violet-200 sm:inline-flex">{reading.tarot[1]?.cardName}</Badge><ArrowUpRight className="h-4 w-4 text-amber-200" /></div></Link>)}</div> : <div className="empty-orbit mt-10"><Sparkles className="h-5 w-5 text-amber-200" /><h2 className="mt-5 font-display text-3xl text-amber-50">The archive is waiting.</h2><p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">Your completed readings will gather here, ready to revisit when the next decision arrives.</p><Link href="/"><Button className="mystic-button mt-7"><BookOpen className="mr-2 h-4 w-4" />Consult the oracle</Button></Link></div>}</div>; }

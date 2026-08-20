@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertReading, InsertUser, readings, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,36 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function createReading(reading: InsertReading) {
+  const db = await getDb();
+  if (!db) throw new Error("The reading archive is unavailable. Please try again shortly.");
+  const [result] = await db.insert(readings).values(reading);
+  return Number(result.insertId);
+}
+
+export async function getReadingForUser(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(readings).where(and(eq(readings.id, id), eq(readings.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function listReadingsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(readings).where(eq(readings.userId, userId)).orderBy(desc(readings.createdAt));
+}
+
+export async function shareReading(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("The reading archive is unavailable. Please try again shortly.");
+  await db.update(readings).set({ isShared: true }).where(and(eq(readings.id, id), eq(readings.userId, userId)));
+  return getReadingForUser(id, userId);
+}
+
+export async function getSharedReading(shareSlug: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(readings).where(and(eq(readings.shareSlug, shareSlug), eq(readings.isShared, true))).limit(1);
+  return result[0];
+}
