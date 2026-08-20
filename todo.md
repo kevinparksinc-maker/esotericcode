@@ -22,3 +22,9 @@
 - [x] Generate reversed-card interpretations and technical actions grounded in repository metrics.
 - [x] Display upright and reversed orientation labels and visual states in reading results and the Symbol Library.
 - [x] Add orientation selection tests, validate the updated UI, and save a delivery checkpoint.
+- [x] Research KP astrology terms and define a repository-birth-chart interpretation model grounded in available GitHub metadata.
+- [x] Extend repository analysis to preserve chart-relevant creation and change-cycle timestamps.
+- [x] Implement KP-style planetary, house, nakshatra, and sub-lord correspondences and map them to Tarot and I Ching results.
+- [x] Add a KP astrology panel and an integrated three-system synthesis to repository readings.
+- [x] Add deterministic KP mapping tests, validate the integrated experience, and save a delivery checkpoint.
+- [x] Add a public KP correspondence atlas that visibly maps each planetary significator to Tarot and I Ching resonances.

@@ -1,5 +1,35 @@
 export type ComplexityLevel = "low" | "moderate" | "high";
 export type TarotOrientation = "upright" | "reversed";
+export type KpPlanet = "Sun" | "Moon" | "Mars" | "Mercury" | "Jupiter" | "Venus" | "Saturn" | "Rahu" | "Ketu";
+
+export type KpPlanetaryCorrespondence = {
+  planet: KpPlanet;
+  symbol: string;
+  engineeringFocus: string;
+  tarotResonances: string[];
+  hexagramResonances: Array<{ number: number; name: string }>;
+};
+
+export type KpHouseEmphasis = {
+  number: number;
+  name: string;
+  engineeringDomain: string;
+  theme: string;
+};
+
+export type KpAstrologyChart = {
+  framework: "Repository symbolic chart";
+  repositoryBirth: { createdAt: string; ageDays: number; source: string };
+  activeHouse: KpHouseEmphasis;
+  nakshatra: { index: number; name: string; ruler: KpPlanet; theme: string };
+  starLord: KpPlanetaryCorrespondence;
+  subLord: KpPlanetaryCorrespondence;
+  significators: KpPlanetaryCorrespondence[];
+  tarotBridge: string[];
+  ichingBridge: Array<{ number: number; name: string }>;
+  synthesis: string;
+  disclaimer: string;
+};
 
 export type RepositoryMetrics = {
   repositoryUrl: string;
@@ -22,7 +52,9 @@ export type RepositoryMetrics = {
   complexityLevel: ComplexityLevel;
   complexityScore: number;
   complexitySignals: string[];
+  repositoryCreatedAt: string;
   fetchedAt: string;
+  kpChart?: KpAstrologyChart;
 };
 
 export type TarotCard = {

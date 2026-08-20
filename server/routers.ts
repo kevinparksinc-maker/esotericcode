@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { createReading, getReadingForUser, getSharedReading, listReadingsForUser, shareReading } from "./db";
 import { I_CHING_HEXAGRAMS, TAROT_DECK } from "./divination-library";
+import { KP_PLANETS } from "./kp-astrology";
 import { createDivination, extractRepositoryMetrics } from "./esoteric";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -22,7 +23,7 @@ export const appRouter = router({
     }),
   }),
   divination: router({
-    library: publicProcedure.query(() => ({ tarot: TAROT_DECK, hexagrams: I_CHING_HEXAGRAMS })),
+    library: publicProcedure.query(() => ({ tarot: TAROT_DECK, hexagrams: I_CHING_HEXAGRAMS, kpPlanets: KP_PLANETS })),
   }),
   readings: router({
     create: protectedProcedure

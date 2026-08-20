@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDivination, parseGitHubRepositoryUrl } from "./esoteric";
 import { I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
+import { createRepositoryKpChart } from "./kp-astrology";
 import type { RepositoryMetrics } from "@shared/esoteric";
 
 const baseMetrics: RepositoryMetrics = {
@@ -24,6 +25,7 @@ const baseMetrics: RepositoryMetrics = {
   complexityLevel: "low",
   complexityScore: 1,
   complexitySignals: ["The repository presents a compact, legible structural profile."],
+  repositoryCreatedAt: "2023-01-15T10:30:00.000Z",
   fetchedAt: "2026-08-20T00:00:00.000Z",
 };
 
@@ -75,5 +77,18 @@ describe("EsotericCode mapping", () => {
     expect(stressed.tarot[1]).toMatchObject({ cardName: "The Tower", orientation: "reversed" });
     expect(stressed.tarot[1]?.orientationEvidence).toContain("Reversed:");
     expect(stressed.tarot.every(card => card.orientation === "upright" || card.orientation === "reversed")).toBe(true);
+  });
+
+  it("builds a deterministic repository KP chart with Tarot and I Ching bridges", () => {
+    const complexMetrics = { ...baseMetrics, complexityLevel: "high" as const, complexityScore: 6, testRatio: 0.03, testFileCount: 1, repositoryCreatedAt: "2021-04-05T08:12:00.000Z" };
+    const first = createRepositoryKpChart(complexMetrics);
+    const second = createRepositoryKpChart(complexMetrics);
+    expect(first).toEqual(second);
+    expect(first.framework).toBe("Repository symbolic chart");
+    expect(first.activeHouse.number).toBe(8);
+    expect(first.significators.length).toBeGreaterThanOrEqual(2);
+    expect(first.tarotBridge.length).toBeGreaterThan(1);
+    expect(first.ichingBridge.length).toBeGreaterThan(1);
+    expect(first.disclaimer).toContain("not a personal natal chart");
   });
 });
