@@ -1,7 +1,8 @@
 import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
 
-import { drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
+import { castCompleteIChing, drawCompleteTarot } from "./divination-library";
 import { createRepositoryKpChart } from "./kp-astrology";
+import { analyzeRepositoryArchitecture } from "./repository-analysis";
 
 type GitHubTreeEntry = { path: string; type: "blob" | "tree"; size?: number };
 type GitHubRepo = {
@@ -137,7 +138,14 @@ export async function extractRepositoryMetrics(repositoryUrl: string): Promise<R
     repositoryCreatedAt: repo.created_at,
     fetchedAt: new Date().toISOString(),
   };
-  return { ...metrics, kpChart: createRepositoryKpChart(metrics) };
+  let architecture;
+  try {
+    architecture = await analyzeRepositoryArchitecture({ owner: identity.owner, repo: identity.repo, branch: repo.default_branch, repositoryFiles: blobs.length, recentCommitCount, mostRecentCommitAt: commits[0]?.commit?.author?.date });
+  } catch (error) {
+    console.warn("[Repository analysis] Architecture scan skipped:", error instanceof Error ? error.message : error);
+  }
+  const enrichedMetrics = { ...metrics, architecture };
+  return { ...enrichedMetrics, kpChart: createRepositoryKpChart(enrichedMetrics) };
 }
 
 const cards = {
@@ -224,12 +232,13 @@ function mapIChing(metrics: RepositoryMetrics): IChingReading {
 
 export function createDivination(metrics: RepositoryMetrics): { tarot: TarotCard[]; iching: IChingReading; narrative: string } {
   const tarot = drawCompleteTarot(metrics);
-  const iching = selectCompleteHexagram(metrics);
+  const iching = castCompleteIChing(metrics);
   const kp = metrics.kpChart ?? createRepositoryKpChart(metrics);
   const foundation = tarot[0];
   const fracture = tarot[1];
   const passage = tarot[2];
   const dominantLanguage = metrics.primaryLanguage ? `${metrics.primaryLanguage} is the dominant tongue` : "The repository speaks in several tongues";
-  const narrative = `${metrics.name} arrives as a living system of ${formatNumber(metrics.fileCount)} files. ${dominantLanguage}, while ${metrics.contributorCount === 1 ? "one contributor holds the primary thread" : `${metrics.contributorCount} contributors shape its orbit`}. ${foundation.cardName} reveals the strength beneath the surface: ${foundation.mysticalInterpretation} Yet ${fracture.cardName} stands at the threshold, because ${fracture.metricTrigger.toLowerCase()} ${iching.name} offers the governing counsel: ${iching.developerInterpretation} The repository’s KP-inspired chart activates the ${kp.activeHouse.name} house through ${kp.starLord.planet} as star lord and ${kp.subLord.planet} as sub-lord, bridging ${kp.tarotBridge.slice(0, 2).join(" and ")} with its symbolic evidence. Let the next commit be an act of chosen clarity—${passage.technicalActionable.toLowerCase()}`;
+  const architectureThread = metrics.architecture ? ` The full-tree architecture scan found ${metrics.architecture.coverage.inspectedTextFiles} inspectable text files across ${metrics.architecture.topLevelModules.length} principal modules; ${metrics.architecture.unifiedSummary}` : " The architectural layer was unavailable for this pass, so the reading relies on the repository’s structural metadata.";
+  const narrative = `${metrics.name} arrives as a living system of ${formatNumber(metrics.fileCount)} files. ${dominantLanguage}, while ${metrics.contributorCount === 1 ? "one contributor holds the primary thread" : `${metrics.contributorCount} contributors shape its orbit`}.${architectureThread} ${foundation.cardName} reveals the strength beneath the surface: ${foundation.mysticalInterpretation} Yet ${fracture.cardName} stands at the threshold, because ${fracture.metricTrigger.toLowerCase()} ${iching.name} offers the governing counsel: ${iching.developerInterpretation} The repository’s KP-inspired chart activates the ${kp.activeHouse.name} house through ${kp.starLord.planet} as star lord and ${kp.subLord.planet} as sub-lord, bridging ${kp.tarotBridge.slice(0, 2).join(" and ")} with its symbolic evidence. Let the next commit be an act of chosen clarity—${passage.technicalActionable.toLowerCase()}`;
   return { tarot, iching, narrative };
 }

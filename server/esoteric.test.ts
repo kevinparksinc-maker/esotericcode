@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createDivination, parseGitHubRepositoryUrl } from "./esoteric";
-import { I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
+import { castCompleteIChing, createSignalProfile, I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
 import { createRepositoryKpChart } from "./kp-astrology";
+import { classifyRepositoryFile } from "./repository-analysis";
 import type { RepositoryMetrics } from "@shared/esoteric";
 
 const baseMetrics: RepositoryMetrics = {
@@ -90,5 +91,39 @@ describe("EsotericCode mapping", () => {
     expect(first.tarotBridge.length).toBeGreaterThan(1);
     expect(first.ichingBridge.length).toBeGreaterThan(1);
     expect(first.disclaimer).toContain("not a personal natal chart");
+  });
+
+  it("casts all six I Ching lines and creates a relating hexagram only when lines change", () => {
+    const changing = castCompleteIChing({ ...baseMetrics, repositoryUrl: "https://github.com/acme/volatile", complexityLevel: "high", complexityScore: 6, testRatio: 0.02, testFileCount: 1, recentCommitCount: 18 });
+    expect(changing.cast?.lines).toHaveLength(6);
+    expect(changing.cast?.lines.map(line => line.position)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(changing.cast?.lines.every(line => [6, 7, 8, 9].includes(line.value))).toBe(true);
+    expect(changing.cast?.lines.every(line => Boolean(line.interpretation))).toBe(true);
+    expect(changing.cast?.mode).toBe("changing");
+    expect(changing.cast?.relatingHexagram).toBeDefined();
+    expect(changing.cast?.changingLineNumbers.length).toBeGreaterThan(0);
+
+    const staticCast = Array.from({ length: 200 }, (_, index) => castCompleteIChing({ ...baseMetrics, repositoryUrl: `https://github.com/acme/static-${index}`, complexityLevel: "low", complexityScore: 0, testRatio: 0.4, recentCommitCount: 1 }))
+      .find(reading => reading.cast?.mode === "static");
+    expect(staticCast?.cast?.changingLineNumbers).toEqual([]);
+    expect(staticCast?.cast?.relatingHexagram).toBeUndefined();
+    expect(staticCast?.cast?.transformationSummary).toContain("static reading");
+  });
+
+  it("maps full-tree architecture evidence into the divination signal profile and KP chart", () => {
+    const architecture = {
+      analysisMode: "bounded full-tree architecture scan" as const,
+      coverage: { repositoryFiles: 220, inspectedTextFiles: 130, excludedNoiseFiles: 30, contentBatches: 4, unprocessedTextFiles: 0 },
+      categoryCounts: { source: 78, test: 18, config: 9, documentation: 4, manifest: 2, migration: 3, infrastructure: 2, other: 14 },
+      topLevelModules: [], entryPoints: ["src/main.ts"], importEdges: Array.from({ length: 84 }, (_, index) => ({ from: `src/${index}.ts`, to: "./shared" })), dependencyCount: 12, dependencies: [], testDirectories: ["tests"], maintenanceMarkers: { todo: 18, fixme: 7, deprecated: 2 }, largestFiles: [], recency: { recentCommitCount: 12, mostRecentCommitAt: "2026-08-20T00:00:00.000Z", recentlyTouchedFiles: [{ path: "src/main.ts", lastCommitAt: "2026-08-20T00:00:00.000Z" }] }, moduleSummaries: [], unifiedSummary: "A heavily connected repository with visible maintenance debt.", synthesisMethod: "batched module summaries followed by one unified synthesis" as const,
+    };
+    const profile = createSignalProfile({ ...baseMetrics, architecture });
+    expect(profile.complexity).toBeGreaterThan(createSignalProfile(baseMetrics).complexity);
+    expect(profile.maintenance).toBeGreaterThan(createSignalProfile(baseMetrics).maintenance);
+    expect(createRepositoryKpChart({ ...baseMetrics, architecture }).activeHouse.number).toBe(8);
+    expect(classifyRepositoryFile("src/app.ts")).toBe("source");
+    expect(classifyRepositoryFile(".github/workflows/ci.yml")).toBe("infrastructure");
+    expect(classifyRepositoryFile("db/migrations/001_init.sql")).toBe("migration");
+    expect(classifyRepositoryFile("docs/architecture.md")).toBe("documentation");
   });
 });

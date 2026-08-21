@@ -1,4 +1,4 @@
-import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
+import type { IChingCast, IChingLine, IChingLineValue, IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
 
 export type SignalKey = "activity" | "change" | "stability" | "testing" | "complexity" | "risk" | "collaboration" | "scale" | "maintenance" | "craft" | "growth";
 type Profile = Record<SignalKey, number>;
@@ -182,18 +182,46 @@ export const I_CHING_HEXAGRAMS: HexagramEntry[] = hexRows.map(([number, name, ch
   number, name, chineseName, symbol: String.fromCodePoint(0x4dc0 + number - 1), classicalText, developerInterpretation, affinities,
 }));
 
+// Lines are ordered from the bottom (first) line to the top (sixth) line.
+// 1 denotes yang and 0 denotes yin. This is the full King Wen mapping used to
+// identify both the primary and relating hexagrams after a cast changes.
+const KING_WEN_BY_PATTERN: Record<string, number> = {
+  "111111": 1, "000000": 2, "100010": 3, "010001": 4, "111010": 5, "010111": 6, "010000": 7, "000010": 8,
+  "111011": 9, "110111": 10, "111000": 11, "000111": 12, "101111": 13, "111101": 14, "001000": 15, "000100": 16,
+  "100110": 17, "011001": 18, "110000": 19, "000011": 20, "100101": 21, "101001": 22, "000001": 23, "100000": 24,
+  "100111": 25, "111001": 26, "100001": 27, "011110": 28, "010010": 29, "101101": 30, "001110": 31, "011100": 32,
+  "001111": 33, "111100": 34, "000101": 35, "101000": 36, "101011": 37, "110101": 38, "001010": 39, "010100": 40,
+  "110001": 41, "100011": 42, "111110": 43, "011111": 44, "000110": 45, "011000": 46, "010110": 47, "011010": 48,
+  "101110": 49, "011101": 50, "100100": 51, "001001": 52, "001011": 53, "110100": 54, "101100": 55, "001101": 56,
+  "011011": 57, "110110": 58, "010011": 59, "110010": 60, "110011": 61, "001100": 62, "101010": 63, "010101": 64,
+};
+
+const patternForHexagram = Object.fromEntries(Object.entries(KING_WEN_BY_PATTERN).map(([pattern, number]) => [number, pattern])) as Record<number, string>;
+const linePositions = [
+  ["First line", "entry conditions and the first available move"],
+  ["Second line", "support, alignment, and early participation"],
+  ["Third line", "friction, exposure, and the decision to cross a threshold"],
+  ["Fourth line", "the boundary between inner work and the wider system"],
+  ["Fifth line", "governance, leverage, and responsible stewardship"],
+  ["Sixth line", "culmination, excess, completion, or release"],
+] as const;
+
 export function createSignalProfile(metrics: RepositoryMetrics): Profile {
+  const architecture = metrics.architecture;
+  const architectureComplexity = architecture && architecture.importEdges.length > 70 ? 0.16 : 0;
+  const maintenancePressure = architecture ? Math.min(0.35, (architecture.maintenanceMarkers.todo + architecture.maintenanceMarkers.fixme + architecture.maintenanceMarkers.deprecated) / 45) : 0;
+  const testCoverage = architecture ? Math.min(0.18, architecture.categoryCounts.test / Math.max(1, architecture.coverage.inspectedTextFiles)) : 0;
   return {
   activity: clamp(metrics.recentCommitCount / 24),
     growth: clamp((metrics.recentCommitCount / 26 + metrics.contributorCount / 18 + metrics.sourceFileCount / 600) / 3),
     change: clamp((metrics.recentCommitCount / 20 + metrics.complexityScore / 9) / 2),
-    stability: clamp((metrics.testRatio * 1.4 + (metrics.complexityLevel === "low" ? 0.55 : metrics.complexityLevel === "moderate" ? 0.3 : 0.05)) / 2),
-    testing: clamp(metrics.testRatio * 2.2),
-    complexity: clamp(metrics.complexityScore / 7),
-    risk: clamp((metrics.complexityScore / 7 + (metrics.testRatio < 0.08 ? 0.65 : 0.08)) / 2),
+    stability: clamp((metrics.testRatio * 1.4 + testCoverage + (metrics.complexityLevel === "low" ? 0.55 : metrics.complexityLevel === "moderate" ? 0.3 : 0.05)) / 2),
+    testing: clamp(metrics.testRatio * 2.2 + testCoverage),
+    complexity: clamp(metrics.complexityScore / 7 + architectureComplexity),
+    risk: clamp((metrics.complexityScore / 7 + architectureComplexity + maintenancePressure + (metrics.testRatio < 0.08 ? 0.65 : 0.08)) / 2),
     collaboration: clamp(metrics.contributorCount / 16),
     scale: clamp((metrics.sourceFileCount / 500 + metrics.directoryDepth / 10) / 2),
-    maintenance: clamp((1 - metrics.recentCommitCount / 30 + (metrics.testRatio < 0.12 ? 0.3 : 0.1)) / 2),
+    maintenance: clamp((1 - metrics.recentCommitCount / 30 + maintenancePressure + (metrics.testRatio < 0.12 ? 0.3 : 0.1)) / 2),
     craft: clamp((metrics.testRatio + (metrics.averageSourceFileSize < 9000 ? 0.6 : 0.2) + (metrics.directoryDepth < 6 ? 0.25 : 0)) / 2),
   };
 }
@@ -261,4 +289,49 @@ export function selectCompleteHexagram(metrics: RepositoryMetrics): IChingReadin
           : undefined;
   const chosen = pinned ? I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === pinned)! : pickFrom(I_CHING_HEXAGRAMS, profile, `${metrics.repositoryUrl}:hexagram`);
   return { number: chosen.number, name: chosen.name, chineseName: chosen.chineseName, symbol: chosen.symbol, classicalText: chosen.classicalText, developerInterpretation: chosen.developerInterpretation, trigger: `${chosen.name} was selected from the full 64-hexagram system using the repository’s activity, complexity, collaboration, test, scale, and maintenance signals.` };
+}
+
+function lineInterpretation(line: number, value: IChingLineValue, primary: HexagramEntry, relating: HexagramEntry | undefined) {
+  const [positionName, domain] = linePositions[line - 1];
+  const changing = value === 6 || value === 9;
+  const polarity = value === 6 || value === 8 ? "yin" : "yang";
+  if (!changing) return `${positionName} is stable ${polarity}. In ${primary.name}, this holds the theme of ${domain}; let the existing pattern do its work before introducing a larger intervention.`;
+  const direction = value === 6 ? "receptivity becoming assertion" : "assertion becoming receptivity";
+  const destination = relating ? ` It contributes to the relating hexagram, ${relating.number}. ${relating.name}.` : "";
+  return `${positionName} is changing: ${polarity}, at an extreme, turns from ${direction}. In repository terms, ${domain} is the active hinge; make the transition intentionally rather than treating it as background noise.${destination}`;
+}
+
+export function castCompleteIChing(metrics: RepositoryMetrics, primaryReading = selectCompleteHexagram(metrics)): IChingReading {
+  const primary = I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === primaryReading.number)!;
+  const primaryPattern = patternForHexagram[primary.number];
+  const profile = createSignalProfile(metrics);
+  const movementChance = Math.round((0.08 + profile.change * 0.16 + profile.risk * 0.16 + profile.maintenance * 0.06) * 100);
+  const rawLines = primaryPattern.split("").map((bit, index) => {
+    const isYang = bit === "1";
+    const moves = hash(`${metrics.repositoryUrl}:${metrics.repositoryCreatedAt}:${primary.number}:line:${index + 1}`) % 100 < movementChance;
+    return (moves ? (isYang ? 9 : 6) : (isYang ? 7 : 8)) as IChingLineValue;
+  });
+  const changedPattern = rawLines.map(value => value === 6 ? "1" : value === 9 ? "0" : value === 7 ? "1" : "0").join("");
+  const changingLineNumbers = rawLines.flatMap((value, index) => value === 6 || value === 9 ? [index + 1] : []);
+  const relatingNumber = KING_WEN_BY_PATTERN[changedPattern];
+  const relating = changingLineNumbers.length ? I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === relatingNumber) : undefined;
+  const lines: IChingLine[] = rawLines.map((value, index) => ({
+    position: index + 1,
+    positionName: linePositions[index][0],
+    value,
+    polarity: value === 6 || value === 8 ? "yin" : "yang",
+    changing: value === 6 || value === 9,
+    interpretation: lineInterpretation(index + 1, value, primary, relating),
+  }));
+  const cast: IChingCast = {
+    method: "deterministic repository casting",
+    mode: changingLineNumbers.length ? "changing" : "static",
+    lines,
+    changingLineNumbers,
+    relatingHexagram: relating ? { number: relating.number, name: relating.name, chineseName: relating.chineseName, symbol: relating.symbol, developerInterpretation: relating.developerInterpretation } : undefined,
+    transformationSummary: changingLineNumbers.length
+      ? `Lines ${changingLineNumbers.join(", ")} are active. ${primary.number}. ${primary.name} is changing toward ${relating!.number}. ${relating!.name}; read the primary as the present pattern and the relating hexagram as the direction shaped by the active lines.`
+      : `All six lines are stable. ${primary.number}. ${primary.name} is a static reading: its present pattern is the primary counsel, without a relating hexagram taking precedence.`,
+  };
+  return { ...primaryReading, cast, trigger: `${primaryReading.trigger} ${cast.transformationSummary}` };
 }

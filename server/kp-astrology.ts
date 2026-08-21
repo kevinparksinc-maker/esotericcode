@@ -48,6 +48,7 @@ function timestampSeed(value: string) {
 }
 
 function primaryPlanet(metrics: RepositoryMetrics): KpPlanet {
+  if (metrics.architecture && metrics.architecture.maintenanceMarkers.fixme + metrics.architecture.maintenanceMarkers.deprecated >= 8) return "Saturn";
   if (metrics.complexityLevel === "high") return metrics.testRatio < 0.1 ? "Rahu" : "Saturn";
   if (metrics.contributorCount >= 8) return "Jupiter";
   if (metrics.recentCommitCount >= 14) return "Mars";
@@ -57,6 +58,7 @@ function primaryPlanet(metrics: RepositoryMetrics): KpPlanet {
 }
 
 function activeHouse(metrics: RepositoryMetrics): KpHouseEmphasis {
+  if (metrics.architecture && metrics.architecture.categoryCounts.migration + metrics.architecture.categoryCounts.infrastructure >= 4) return HOUSES[7];
   if (metrics.complexityLevel === "high") return HOUSES[7];
   if (metrics.testRatio < 0.08) return HOUSES[5];
   if (metrics.contributorCount >= 8) return HOUSES[10];

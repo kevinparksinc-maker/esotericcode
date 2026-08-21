@@ -30,3 +30,13 @@
 - [x] Add a public KP correspondence atlas that visibly maps each planetary significator to Tarot and I Ching resonances.
 - [x] Diagnose and fix the reported application loading failure, validate the live experience, and save a repair checkpoint.
 - [x] Trace and fix the persistent loading spinner reported in the user session, then validate the affected path.
+- [x] Verify the complete 78-card Tarot deck is present and available to the reading engine.
+- [x] Define an authentic six-line I Ching casting model, changing-line representation, and transformed-hexagram behavior.
+- [x] Implement base and transformed I Ching hexagram readings with individual changing-line interpretations across all 64 hexagrams.
+- [x] Integrate the complete changing-line I Ching result with Tarot and KP repository readings.
+- [x] Present the full casting state in reading and library interfaces, add integrity tests, and save a delivery checkpoint.
+- [x] Build a full repository map that includes source, configuration, documentation, manifests, migrations, and infrastructure files while excluding generated noise.
+- [x] Extract structured architecture and metric signals: modules, entry points, imports, tests, dependencies, file sizes, recency, and maintenance markers.
+- [x] Create a single unified repository synthesis before divination and use its evidence in Tarot, I Ching, and KP mappings.
+- [x] Present architecture evidence in the reading, add ingestion tests, validate the enhanced analysis, and save a delivery checkpoint.
+- [x] Validate a completed repository reading’s architecture evidence panel and save the final enhanced-analysis checkpoint.
