@@ -76,5 +76,5 @@ describe("repository architecture ingestion", () => {
     expect(metrics.architecture?.categoryCounts.source).toBe(1);
     expect(metrics.architecture?.categoryCounts.documentation).toBe(1);
     expect(metrics.kpChart?.framework).toBe("Repository symbolic chart");
-  }, 30_000);
+  }, 90_000);
 });

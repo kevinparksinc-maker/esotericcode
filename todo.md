@@ -47,3 +47,19 @@
 - [x] Test ZIP safety and analysis behavior, validate the upload UI, and save a delivery checkpoint.
 - [x] Run and verify the callable authenticated ZIP-upload flow before saving the delivery checkpoint.
 - [x] Run the real ZIP parser and shared analysis pipeline against an archive fixture before saving the delivery checkpoint.
+- [x] Define secure GitHub OAuth scopes, token encryption, authorization state validation, and disconnect behavior.
+- [x] Add persistent encrypted GitHub connection records and secure OAuth callback handling.
+- [x] Add private-repository discovery, selection, and analysis through the user’s authorized GitHub connection.
+- [x] Build GitHub connection and private-repository import controls in the oracle interface.
+- [x] Test authorization boundaries, validate the connected import flow, and save a delivery checkpoint.
+- [x] Prevent unauthenticated visitors from starting GitHub OAuth and guide them through EsotericCode sign-in first.
+- [x] Validate the authenticated GitHub OAuth happy path through consent, callback, private-repository listing, and private analysis.
+- [ ] Save a final checkpoint after validating the private GitHub import experience.
+- [x] Diagnose and fix the Manus sign-in callback server error, validate authentication recovery, and save a repair checkpoint.
+- [x] Diagnose and stabilize the recurring development-server disconnect observed during Manus sign-in.
+- [x] Repair the malformed GitHub OAuth redirect URI and revalidate the consent callback before private-repository analysis.
+- [x] Diagnose and repair the broken browser page returned after successful GitHub OAuth sign-in and consent.
+- [x] Preserve the Private GitHub intake tab when a completed GitHub OAuth callback returns to EsotericCode.
+- [ ] Save a repair checkpoint covering the Manus sign-in recovery and GitHub OAuth fixes after final validation.
+- [x] Investigate the recurring development-server ELIFECYCLE/disconnect behavior, implement a concrete fix if it is app-caused, and verify sign-in can be retried without another server restart.
+- [ ] Verify, on the current running service without manually restarting it, that Manus sign-in and GitHub OAuth can both be retried successfully; document the evidence.

@@ -1,10 +1,12 @@
 import { COOKIE_NAME } from "@shared/const";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { createReading, getReadingForUser, getSharedReading, listReadingsForUser, shareReading } from "./db";
+import { createReading, deleteGitHubConnection, getGitHubConnection, getReadingForUser, getSharedReading, listReadingsForUser, shareReading } from "./db";
 import { I_CHING_HEXAGRAMS, TAROT_DECK } from "./divination-library";
 import { KP_PLANETS } from "./kp-astrology";
-import { createDivination, extractRepositoryMetrics, extractUploadedZipMetrics } from "./esoteric";
+import { createDivination, extractRepositoryMetrics, extractUploadedZipMetrics, parseGitHubRepositoryUrl } from "./esoteric";
+import { decryptGitHubToken } from "./github-crypto";
+import { listConnectedGitHubRepositories } from "./github-api";
 import { ZIP_UPLOAD_LIMIT } from "./repository-analysis";
 import { storagePut } from "./storage";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -26,6 +28,27 @@ export const appRouter = router({
   }),
   divination: router({
     library: publicProcedure.query(() => ({ tarot: TAROT_DECK, hexagrams: I_CHING_HEXAGRAMS, kpPlanets: KP_PLANETS })),
+  }),
+  github: router({
+    status: protectedProcedure.query(async ({ ctx }) => {
+      const connection = await getGitHubConnection(ctx.user.id);
+      return connection ? { connected: true, login: connection.githubLogin, scope: connection.scope } : { connected: false, login: null, scope: null };
+    }),
+    repositories: protectedProcedure.query(async ({ ctx }) => {
+      const connection = await getGitHubConnection(ctx.user.id);
+      if (!connection) throw new Error("Connect GitHub before selecting a private repository.");
+      return listConnectedGitHubRepositories(decryptGitHubToken(connection.accessTokenEncrypted));
+    }),
+    analyze: protectedProcedure.input(z.object({ fullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "Select a repository from your connected GitHub account.") })).mutation(async ({ input, ctx }) => {
+      const connection = await getGitHubConnection(ctx.user.id);
+      if (!connection) throw new Error("Connect GitHub before analyzing a private repository.");
+      const identity = parseGitHubRepositoryUrl(input.fullName);
+      const metrics = await extractRepositoryMetrics(identity.normalizedUrl, decryptGitHubToken(connection.accessTokenEncrypted));
+      const divination = createDivination(metrics);
+      const id = await createReading({ userId: ctx.user.id, repositoryUrl: metrics.repositoryUrl, repositoryOwner: metrics.owner, repositoryName: metrics.name, shareSlug: nanoid(12), isShared: false, metrics, tarot: divination.tarot, iching: divination.iching, narrative: divination.narrative });
+      return { id };
+    }),
+    disconnect: protectedProcedure.mutation(async ({ ctx }) => { await deleteGitHubConnection(ctx.user.id); return { success: true } as const; }),
   }),
   readings: router({
     create: protectedProcedure

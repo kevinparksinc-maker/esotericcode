@@ -42,33 +42,34 @@ export function parseGitHubRepositoryUrl(input: string): { owner: string; repo: 
   }
 }
 
-async function githubJson<T>(path: string): Promise<T> {
+async function githubJson<T>(path: string, accessToken?: string): Promise<T> {
   const response = await fetch(`https://api.github.com${path}`, {
     headers: {
       Accept: "application/vnd.github+json",
       "User-Agent": "EsotericCode-oracle",
       "X-GitHub-Api-Version": "2022-11-28",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    if (response.status === 404) throw new Error("This repository was not found or is private. EsotericCode can read public repositories.");
+    if (response.status === 404) throw new Error(accessToken ? "This repository was not found or your GitHub connection is not authorized to read it." : "This repository was not found or is private. EsotericCode can read public repositories.");
     if (response.status === 403) throw new Error(body?.message ?? "GitHub’s public API is temporarily unavailable. Please try again shortly.");
     throw new Error(body?.message ?? "GitHub could not provide this repository’s data.");
   }
   return response.json() as Promise<T>;
 }
 
-export async function extractRepositoryMetrics(repositoryUrl: string): Promise<RepositoryMetrics> {
+export async function extractRepositoryMetrics(repositoryUrl: string, accessToken?: string): Promise<RepositoryMetrics> {
   const identity = parseGitHubRepositoryUrl(repositoryUrl);
   const repoPath = `/repos/${encodeURIComponent(identity.owner)}/${encodeURIComponent(identity.repo)}`;
-  const repo = await githubJson<GitHubRepo>(repoPath);
+  const repo = await githubJson<GitHubRepo>(repoPath, accessToken);
   const [languageMap, treePayload, commits, contributors] = await Promise.all([
-    githubJson<Record<string, number>>(`${repoPath}/languages`),
-    githubJson<{ tree: GitHubTreeEntry[]; truncated: boolean }>(`${repoPath}/git/trees/${encodeURIComponent(repo.default_branch)}?recursive=1`),
-    githubJson<GitHubCommit[]>(`${repoPath}/commits?per_page=100`),
-    githubJson<unknown[]>(`${repoPath}/contributors?per_page=100`),
+    githubJson<Record<string, number>>(`${repoPath}/languages`, accessToken),
+    githubJson<{ tree: GitHubTreeEntry[]; truncated: boolean }>(`${repoPath}/git/trees/${encodeURIComponent(repo.default_branch)}?recursive=1`, accessToken),
+    githubJson<GitHubCommit[]>(`${repoPath}/commits?per_page=100`, accessToken),
+    githubJson<unknown[]>(`${repoPath}/contributors?per_page=100`, accessToken),
   ]);
 
   const blobs = treePayload.tree.filter(entry => entry.type === "blob");
@@ -140,7 +141,7 @@ export async function extractRepositoryMetrics(repositoryUrl: string): Promise<R
   };
   let architecture;
   try {
-    architecture = await analyzeRepositoryArchitecture({ owner: identity.owner, repo: identity.repo, branch: repo.default_branch, repositoryFiles: blobs.length, recentCommitCount, mostRecentCommitAt: commits[0]?.commit?.author?.date });
+    architecture = await analyzeRepositoryArchitecture({ owner: identity.owner, repo: identity.repo, branch: repo.default_branch, accessToken, repositoryFiles: blobs.length, recentCommitCount, mostRecentCommitAt: commits[0]?.commit?.author?.date });
   } catch (error) {
     console.warn("[Repository analysis] Architecture scan skipped:", error instanceof Error ? error.message : error);
   }

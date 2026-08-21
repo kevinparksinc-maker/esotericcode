@@ -221,3 +221,4 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
     }
   }
 }
+.private-intake-state { border: 1px solid rgba(126, 196, 211, .24); border-radius: 12px; background: radial-gradient(circle at 90% 10%, rgba(68,133,165,.15), transparent 35%), rgba(12,25,39,.56); padding: 1.15rem; color: #d5edf5; }.private-repo-select { height: 48px; border: 1px solid rgba(145, 211, 231, .25); border-radius: 10px; background: rgba(7, 14, 25, .72); padding: 0 .85rem; color: #ebf8fb; font-family: "DM Mono", monospace; font-size: 12px; outline: none; }.private-repo-select:focus { border-color: rgba(254,221,151,.65); box-shadow: 0 0 0 3px rgba(252,218,145,.09); }.private-repo-select option { background: #111827; color: #ecf7fb; }

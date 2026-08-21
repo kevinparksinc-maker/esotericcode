@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertReading, InsertUser, readings, users } from "../drizzle/schema";
+import { githubConnections, githubOAuthStates, InsertReading, InsertUser, readings, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -121,4 +121,40 @@ export async function getSharedReading(shareSlug: string) {
   if (!db) return undefined;
   const result = await db.select().from(readings).where(and(eq(readings.shareSlug, shareSlug), eq(readings.isShared, true))).limit(1);
   return result[0];
+}
+
+export async function createGitHubOAuthState(userId: number, state: string, expiresAt: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("The GitHub connection service is unavailable. Please try again shortly.");
+  await db.insert(githubOAuthStates).values({ userId, state, expiresAt });
+}
+
+export async function consumeGitHubOAuthState(state: string) {
+  const db = await getDb();
+  if (!db) throw new Error("The GitHub connection service is unavailable. Please try again shortly.");
+  const result = await db.select().from(githubOAuthStates).where(eq(githubOAuthStates.state, state)).limit(1);
+  const record = result[0];
+  if (!record) return undefined;
+  await db.delete(githubOAuthStates).where(eq(githubOAuthStates.id, record.id));
+  if (record.expiresAt.getTime() < Date.now()) return undefined;
+  return record;
+}
+
+export async function upsertGitHubConnection(userId: number, githubLogin: string, accessTokenEncrypted: string, scope: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("The GitHub connection service is unavailable. Please try again shortly.");
+  await db.insert(githubConnections).values({ userId, githubLogin, accessTokenEncrypted, scope }).onDuplicateKeyUpdate({ set: { githubLogin, accessTokenEncrypted, scope } });
+}
+
+export async function getGitHubConnection(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(githubConnections).where(eq(githubConnections.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function deleteGitHubConnection(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("The GitHub connection service is unavailable. Please try again shortly.");
+  await db.delete(githubConnections).where(eq(githubConnections.userId, userId));
 }

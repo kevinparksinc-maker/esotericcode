@@ -6,7 +6,7 @@ import type { RepositoryArchitecture, RepositoryFileCategory } from "@shared/eso
 import { invokeLLM } from "./_core/llm";
 
 type ArchiveEntry = { path: string; bytes: number; content?: string; category: RepositoryFileCategory };
-type AnalysisInput = { owner?: string; repo?: string; branch?: string; repositoryFiles: number; recentCommitCount: number; mostRecentCommitAt?: string };
+type AnalysisInput = { owner?: string; repo?: string; branch?: string; accessToken?: string; repositoryFiles: number; recentCommitCount: number; mostRecentCommitAt?: string };
 
 const ARCHIVE_COMPRESSED_LIMIT = 24 * 1024 * 1024;
 const TEXT_FILE_LIMIT = 96 * 1024;
@@ -210,7 +210,7 @@ async function fetchSelectedFileRecency(input: AnalysisInput, paths: string[]) {
   const selected = paths.slice(0, 8);
   return Promise.all(selected.map(async path => {
     try {
-      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?sha=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}&per_page=1`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
+      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?sha=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}&per_page=1`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28", ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}) } });
       if (!response.ok) return { path };
       const commits = await response.json() as Array<{ commit?: { author?: { date?: string } } }>;
       return { path, lastCommitAt: commits[0]?.commit?.author?.date };
@@ -242,7 +242,7 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
 export async function analyzeRepositoryArchitecture(input: AnalysisInput): Promise<RepositoryArchitecture> {
   const { owner, repo, branch } = input;
   if (!owner || !repo || !branch) throw new Error("GitHub repository identifiers are required for archive analysis.");
-  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tarball/${encodeURIComponent(branch)}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tarball/${encodeURIComponent(branch)}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28", ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}) } });
   if (!response.ok) throw new Error("GitHub could not provide a source archive for architecture analysis.");
   const archive = await readLimitedBody(response);
   const { entries, excludedNoiseFiles } = await parseRepositoryArchive(archive);
