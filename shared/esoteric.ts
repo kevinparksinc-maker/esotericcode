@@ -91,6 +91,7 @@ export type RepositoryMetrics = {
   fetchedAt: string;
   kpChart?: KpAstrologyChart;
   architecture?: RepositoryArchitecture;
+  source?: { type: "github" | "zip"; label: string; originalFileName?: string };
 };
 
 export type TarotCard = {

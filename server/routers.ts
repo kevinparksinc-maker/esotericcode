@@ -4,7 +4,9 @@ import { z } from "zod";
 import { createReading, getReadingForUser, getSharedReading, listReadingsForUser, shareReading } from "./db";
 import { I_CHING_HEXAGRAMS, TAROT_DECK } from "./divination-library";
 import { KP_PLANETS } from "./kp-astrology";
-import { createDivination, extractRepositoryMetrics } from "./esoteric";
+import { createDivination, extractRepositoryMetrics, extractUploadedZipMetrics } from "./esoteric";
+import { ZIP_UPLOAD_LIMIT } from "./repository-analysis";
+import { storagePut } from "./storage";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -36,6 +38,31 @@ export const appRouter = router({
           repositoryUrl: metrics.repositoryUrl,
           repositoryOwner: metrics.owner,
           repositoryName: metrics.name,
+          shareSlug: nanoid(12),
+          isShared: false,
+          metrics,
+          tarot: divination.tarot,
+          iching: divination.iching,
+          narrative: divination.narrative,
+        });
+        return { id };
+      }),
+    createFromZip: protectedProcedure
+      .input(z.object({ fileName: z.string().min(5).max(255).regex(/\.zip$/i, "Upload a .zip archive."), archiveBase64: z.string().min(8).max(17_000_000) }))
+      .mutation(async ({ input, ctx }) => {
+        const archive = Buffer.from(input.archiveBase64, "base64");
+        if (archive.length === 0 || archive.length > ZIP_UPLOAD_LIMIT) throw new Error("ZIP archives must be 12 MB or smaller.");
+        if (archive[0] !== 0x50 || archive[1] !== 0x4b) throw new Error("The uploaded file is not a valid ZIP archive.");
+        const normalizedFileName = input.fileName.replace(/[^A-Za-z0-9._-]/g, "_");
+        const metrics = await extractUploadedZipMetrics(normalizedFileName, archive);
+        const storedArchive = await storagePut(`repository-uploads/${ctx.user.id}/${nanoid(10)}-${normalizedFileName}`, archive, "application/zip");
+        const divination = createDivination(metrics);
+        const id = await createReading({
+          userId: ctx.user.id,
+          repositoryUrl: metrics.repositoryUrl,
+          repositoryOwner: metrics.owner,
+          repositoryName: metrics.name,
+          sourceFileKey: storedArchive.key,
           shareSlug: nanoid(12),
           isShared: false,
           metrics,

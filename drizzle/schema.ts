@@ -32,6 +32,7 @@ export const readings = mysqlTable("readings", {
   repositoryUrl: varchar("repositoryUrl", { length: 512 }).notNull(),
   repositoryOwner: varchar("repositoryOwner", { length: 128 }).notNull(),
   repositoryName: varchar("repositoryName", { length: 256 }).notNull(),
+  sourceFileKey: varchar("sourceFileKey", { length: 512 }),
   shareSlug: varchar("shareSlug", { length: 24 }).notNull().unique(),
   isShared: boolean("isShared").notNull().default(false),
   metrics: json("metrics").$type<RepositoryMetrics>().notNull(),

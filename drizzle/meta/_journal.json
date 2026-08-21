@@ -15,6 +15,13 @@
       "when": 1787263067880,
       "tag": "0001_sparkling_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787301192684,
+      "tag": "0002_clear_lily_hollister",
+      "breakpoints": true
     }
   ]
 }

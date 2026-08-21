@@ -1,16 +1,20 @@
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
 import * as tar from "tar-stream";
+import * as unzipper from "unzipper";
 import type { RepositoryArchitecture, RepositoryFileCategory } from "@shared/esoteric";
 import { invokeLLM } from "./_core/llm";
 
 type ArchiveEntry = { path: string; bytes: number; content?: string; category: RepositoryFileCategory };
-type AnalysisInput = { owner: string; repo: string; branch: string; repositoryFiles: number; recentCommitCount: number; mostRecentCommitAt?: string };
+type AnalysisInput = { owner?: string; repo?: string; branch?: string; repositoryFiles: number; recentCommitCount: number; mostRecentCommitAt?: string };
 
 const ARCHIVE_COMPRESSED_LIMIT = 24 * 1024 * 1024;
 const TEXT_FILE_LIMIT = 96 * 1024;
 const MAX_LLM_BATCHES = 12;
 const MAX_BATCH_CHARS = 18_000;
+export const ZIP_UPLOAD_LIMIT = 12 * 1024 * 1024;
+const ZIP_ENTRY_LIMIT = 1000;
+const ZIP_UNCOMPRESSED_LIMIT = 48 * 1024 * 1024;
 const NOISE_DIRECTORIES = new Set(["node_modules", "vendor", "dist", "build", ".git", "coverage", ".next", ".turbo", "target", "out", ".cache"]);
 const SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "go", "rs", "java", "kt", "rb", "php", "cs", "cpp", "c", "h", "swift", "scala", "vue", "svelte", "sh", "sql"]);
 const TEXT_EXTENSIONS = new Set(Array.from(SOURCE_EXTENSIONS).concat(["md", "mdx", "txt", "json", "yml", "yaml", "toml", "xml", "html", "css", "scss", "graphql", "gql", "ini", "properties"]));
@@ -22,6 +26,11 @@ function extension(path: string) { return basename(path).split(".").pop()?.toLow
 function rootModule(path: string) { return path.split("/")[0] || "root"; }
 function isNoise(path: string) { return path.split("/").some(segment => NOISE_DIRECTORIES.has(segment)); }
 function isSensitive(path: string) { const name = basename(path); return name.startsWith(".env") && name !== ".env.example" || /\.(pem|key|p12|pfx)$/i.test(name) || /credential|secret|private/i.test(name); }
+function sanitizeArchivePath(path: string) {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalized || normalized.split("/").some(part => part === ".." || part === ".")) return undefined;
+  return normalized;
+}
 
 export function classifyRepositoryFile(path: string): RepositoryFileCategory {
   const lower = path.toLowerCase();
@@ -89,6 +98,33 @@ export async function parseRepositoryArchive(buffer: Buffer): Promise<{ entries:
     extract.on("error", reject);
     Readable.from(buffer).pipe(createGunzip()).pipe(extract).on("error", reject);
   });
+  return { entries, excludedNoiseFiles };
+}
+
+export async function parseUploadedZip(buffer: Buffer): Promise<{ entries: ArchiveEntry[]; excludedNoiseFiles: number }> {
+  if (buffer.length === 0 || buffer.length > ZIP_UPLOAD_LIMIT) throw new Error("ZIP archives must be between 1 byte and 12 MB.");
+  const directory = await unzipper.Open.buffer(buffer);
+  const archiveFiles = directory.files.filter(file => file.type === "File");
+  if (archiveFiles.length === 0) throw new Error("The ZIP archive does not contain files.");
+  if (archiveFiles.length > ZIP_ENTRY_LIMIT) throw new Error("The ZIP archive contains too many files for a bounded analysis.");
+  const uncompressedTotal = archiveFiles.reduce((sum, file) => sum + Number(file.uncompressedSize ?? 0), 0);
+  if (uncompressedTotal > ZIP_UNCOMPRESSED_LIMIT) throw new Error("The ZIP archive expands beyond the 48 MB safety limit.");
+  const safePaths = archiveFiles.map(file => sanitizeArchivePath(file.path)).filter((path): path is string => Boolean(path));
+  const firstSegments = safePaths.map(path => path.split("/")[0]);
+  const sharedRoot = firstSegments.length > 0 && firstSegments.every(segment => segment === firstSegments[0]) && safePaths.some(path => path.includes("/")) ? firstSegments[0] : undefined;
+  const entries: ArchiveEntry[] = [];
+  let excludedNoiseFiles = 0;
+  for (const file of archiveFiles) {
+    const safePath = sanitizeArchivePath(file.path);
+    if (!safePath) { excludedNoiseFiles += 1; continue; }
+    const rawPath = sharedRoot && safePath.startsWith(`${sharedRoot}/`) ? safePath.slice(sharedRoot.length + 1) : safePath;
+    if (isNoise(rawPath) || /\.(lock|map)$/i.test(rawPath) || ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "composer.lock", "cargo.lock"].includes(basename(rawPath))) { excludedNoiseFiles += 1; continue; }
+    const bytes = Number(file.uncompressedSize ?? 0);
+    const category = classifyRepositoryFile(rawPath);
+    if (!isTextCandidate(rawPath, category, bytes)) { entries.push({ path: rawPath, bytes, category }); continue; }
+    const content = await file.buffer();
+    entries.push({ path: rawPath, bytes, category, content: content.subarray(0, TEXT_FILE_LIMIT).toString("utf8") });
+  }
   return { entries, excludedNoiseFiles };
 }
 
@@ -169,10 +205,12 @@ async function synthesizeArchitecture(structured: Omit<RepositoryArchitecture, "
 }
 
 async function fetchSelectedFileRecency(input: AnalysisInput, paths: string[]) {
+  const { owner, repo, branch } = input;
+  if (!owner || !repo || !branch) return paths.slice(0, 8).map(path => ({ path }));
   const selected = paths.slice(0, 8);
   return Promise.all(selected.map(async path => {
     try {
-      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/commits?sha=${encodeURIComponent(input.branch)}&path=${encodeURIComponent(path)}&per_page=1`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
+      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?sha=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}&per_page=1`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
       if (!response.ok) return { path };
       const commits = await response.json() as Array<{ commit?: { author?: { date?: string } } }>;
       return { path, lastCommitAt: commits[0]?.commit?.author?.date };
@@ -180,11 +218,7 @@ async function fetchSelectedFileRecency(input: AnalysisInput, paths: string[]) {
   }));
 }
 
-export async function analyzeRepositoryArchitecture(input: AnalysisInput): Promise<RepositoryArchitecture> {
-  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/tarball/${encodeURIComponent(input.branch)}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
-  if (!response.ok) throw new Error("GitHub could not provide a source archive for architecture analysis.");
-  const archive = await readLimitedBody(response);
-  const { entries, excludedNoiseFiles } = await parseRepositoryArchive(archive);
+async function buildArchitectureFromEntries(input: AnalysisInput, entries: ArchiveEntry[], excludedNoiseFiles: number): Promise<RepositoryArchitecture> {
   const categories: RepositoryArchitecture["categoryCounts"] = { source: 0, test: 0, config: 0, documentation: 0, manifest: 0, migration: 0, infrastructure: 0, other: 0 };
   for (const entry of entries) categories[entry.category] += 1;
   const dependencies = parseDependencies(entries);
@@ -203,4 +237,19 @@ export async function analyzeRepositoryArchitecture(input: AnalysisInput): Promi
   structured.coverage.unprocessedTextFiles = Math.max(0, allBatches.length - selectedBatches.length);
   const unifiedSummary = await synthesizeArchitecture(structured, moduleSummaries);
   return { ...structured, moduleSummaries, unifiedSummary, synthesisMethod: "batched module summaries followed by one unified synthesis" };
+}
+
+export async function analyzeRepositoryArchitecture(input: AnalysisInput): Promise<RepositoryArchitecture> {
+  const { owner, repo, branch } = input;
+  if (!owner || !repo || !branch) throw new Error("GitHub repository identifiers are required for archive analysis.");
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tarball/${encodeURIComponent(branch)}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "EsotericCode-oracle", "X-GitHub-Api-Version": "2022-11-28" } });
+  if (!response.ok) throw new Error("GitHub could not provide a source archive for architecture analysis.");
+  const archive = await readLimitedBody(response);
+  const { entries, excludedNoiseFiles } = await parseRepositoryArchive(archive);
+  return buildArchitectureFromEntries(input, entries, excludedNoiseFiles);
+}
+
+export async function analyzeUploadedZipArchitecture(archive: Buffer): Promise<RepositoryArchitecture> {
+  const { entries, excludedNoiseFiles } = await parseUploadedZip(archive);
+  return buildArchitectureFromEntries({ repositoryFiles: entries.length + excludedNoiseFiles, recentCommitCount: 0 }, entries, excludedNoiseFiles);
 }

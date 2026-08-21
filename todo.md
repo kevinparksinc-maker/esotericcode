@@ -40,3 +40,10 @@
 - [x] Create a single unified repository synthesis before divination and use its evidence in Tarot, I Ching, and KP mappings.
 - [x] Present architecture evidence in the reading, add ingestion tests, validate the enhanced analysis, and save a delivery checkpoint.
 - [x] Validate a completed repository reading’s architecture evidence panel and save the final enhanced-analysis checkpoint.
+- [x] Define ZIP upload limits, archive safety checks, and privacy handling for uploaded repositories.
+- [x] Add ZIP archive parsing and normalize uploaded files into the shared architecture-analysis pipeline.
+- [x] Add authenticated ZIP upload creation and persistent reading metadata alongside GitHub URL readings.
+- [x] Build the ZIP upload intake flow and clear source-state feedback in the oracle interface.
+- [x] Test ZIP safety and analysis behavior, validate the upload UI, and save a delivery checkpoint.
+- [x] Run and verify the callable authenticated ZIP-upload flow before saving the delivery checkpoint.
+- [x] Run the real ZIP parser and shared analysis pipeline against an archive fixture before saving the delivery checkpoint.

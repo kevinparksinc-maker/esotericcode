@@ -2,7 +2,7 @@ import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoter
 
 import { castCompleteIChing, drawCompleteTarot } from "./divination-library";
 import { createRepositoryKpChart } from "./kp-astrology";
-import { analyzeRepositoryArchitecture } from "./repository-analysis";
+import { analyzeRepositoryArchitecture, analyzeUploadedZipArchitecture } from "./repository-analysis";
 
 type GitHubTreeEntry = { path: string; type: "blob" | "tree"; size?: number };
 type GitHubRepo = {
@@ -144,8 +144,39 @@ export async function extractRepositoryMetrics(repositoryUrl: string): Promise<R
   } catch (error) {
     console.warn("[Repository analysis] Architecture scan skipped:", error instanceof Error ? error.message : error);
   }
-  const enrichedMetrics = { ...metrics, architecture };
+  const enrichedMetrics = { ...metrics, architecture, source: { type: "github" as const, label: identity.normalizedUrl } };
   return { ...enrichedMetrics, kpChart: createRepositoryKpChart(enrichedMetrics) };
+}
+
+export async function extractUploadedZipMetrics(fileName: string, archive: Buffer): Promise<RepositoryMetrics> {
+  const safeName = fileName.replace(/[^A-Za-z0-9._-]/g, "_").replace(/\.zip$/i, "") || "uploaded-repository";
+  const architecture = await analyzeUploadedZipArchitecture(archive);
+  const sourceFileCount = architecture.categoryCounts.source;
+  const testFileCount = architecture.categoryCounts.test;
+  const fileCount = architecture.coverage.repositoryFiles;
+  const testRatio = sourceFileCount ? testFileCount / sourceFileCount : 0;
+  const largestSourceFileSize = Math.max(0, ...architecture.largestFiles.filter(file => file.category === "source").map(file => file.bytes));
+  let complexityScore = 0;
+  if (sourceFileCount > 250) complexityScore += 2;
+  if (architecture.importEdges.length > 70) complexityScore += 2;
+  else if (architecture.importEdges.length > 35) complexityScore += 1;
+  if (largestSourceFileSize > 60_000) complexityScore += 2;
+  else if (largestSourceFileSize > 30_000) complexityScore += 1;
+  if (testRatio < 0.05 && sourceFileCount > 20) complexityScore += 1;
+  if (architecture.maintenanceMarkers.fixme + architecture.maintenanceMarkers.deprecated > 8) complexityScore += 1;
+  const complexityLevel = complexityScore >= 5 ? "high" : complexityScore >= 2 ? "moderate" : "low";
+  const complexitySignals = [
+    `${architecture.coverage.inspectedTextFiles} text files were inspected across ${architecture.topLevelModules.length} top-level modules.`,
+    architecture.importEdges.length ? `${architecture.importEdges.length} internal import references were identified.` : "No conventional internal import references were identified.",
+    `${architecture.maintenanceMarkers.todo} TODO, ${architecture.maintenanceMarkers.fixme} FIXME, and ${architecture.maintenanceMarkers.deprecated} deprecation markers were found.`,
+  ];
+  const metrics: RepositoryMetrics = {
+    repositoryUrl: `upload://${safeName}.zip`, owner: "uploaded", name: safeName, description: "User-uploaded ZIP repository archive.", defaultBranch: "archive",
+    primaryLanguage: null, languages: [], fileCount, sourceFileCount, testFileCount, testRatio, contributorCount: 1, recentCommitCount: 0, averageCommitsPerWeek: 0,
+    directoryDepth: architecture.topLevelModules.length > 1 ? 2 : 1, averageSourceFileSize: 0, largestSourceFileSize, complexityLevel, complexityScore, complexitySignals,
+    repositoryCreatedAt: new Date().toISOString(), fetchedAt: new Date().toISOString(), architecture, source: { type: "zip", label: "Uploaded ZIP archive", originalFileName: fileName },
+  };
+  return { ...metrics, kpChart: createRepositoryKpChart(metrics) };
 }
 
 const cards = {
