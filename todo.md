@@ -28,3 +28,5 @@
 - [x] Add a KP astrology panel and an integrated three-system synthesis to repository readings.
 - [x] Add deterministic KP mapping tests, validate the integrated experience, and save a delivery checkpoint.
 - [x] Add a public KP correspondence atlas that visibly maps each planetary significator to Tarot and I Ching resonances.
+- [x] Diagnose and fix the reported application loading failure, validate the live experience, and save a repair checkpoint.
+- [x] Trace and fix the persistent loading spinner reported in the user session, then validate the affected path.
