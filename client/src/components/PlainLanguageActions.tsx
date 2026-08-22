@@ -34,6 +34,10 @@ export function PlainLanguageActions({ metrics }: { metrics: RepositoryMetrics }
                 <span className="font-mono text-[10px] uppercase tracking-[.12em] text-violet-300">Try this: </span>
                 {item.action}
               </p>
+              <p className="mt-3 rounded-sm border border-amber-200/10 bg-amber-100/[0.035] px-3 py-3 text-xs leading-5 text-amber-100/90">
+                <span className="font-mono text-[10px] uppercase tracking-[.12em] text-amber-200">Example: </span>
+                {item.example}
+              </p>
             </article>
           );
         })}

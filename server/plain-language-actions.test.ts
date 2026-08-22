@@ -40,6 +40,8 @@ describe("buildPlainLanguageActions", () => {
       title: "Protect one important user path with tests",
     });
     expect(actions[0]?.action).toContain("Pick one action users rely on");
+    expect(actions[0]?.example).toContain("main user flow");
+    expect(actions[0]?.example.startsWith("For example:")).toBe(false);
   });
 
   it("recommends a focused structural change for a broad system with adequate tests", () => {
@@ -53,5 +55,6 @@ describe("buildPlainLanguageActions", () => {
       step: "Start here",
       title: "Make one busy area easier to change",
     });
+    expect(actions.every(action => action.example.length > 20)).toBe(true);
   });
 });

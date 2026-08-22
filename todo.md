@@ -67,3 +67,5 @@
 - [x] Reopen an affected reading and confirm the duplicate React key warning is absent; verify shared readings do not render the same duplicate-key pattern.
 - [x] Add a plain-English technical-action section to private and shared readings, grounded in repository signals, and validate it end to end.
 - [x] Open a shared reading URL and confirm the plain-English action section renders correctly without client errors.
+- [x] Add contextual concrete examples to every plain-English action card and validate them in private and shared readings.
+- [x] Remove the duplicated “Example: For example:” label from action cards and revalidate the guidance presentation.
