@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { MetricBar } from "@/components/MetricBar";
 import { IChingCastView } from "@/components/IChingCastView";
 import { OracleMark } from "@/components/OracleMark";
+import { PlainLanguageActions } from "@/components/PlainLanguageActions";
 import { TarotCardDetail, TarotCardView } from "@/components/TarotCardView";
 import { Button } from "@/components/ui/button";
 import { getArchitectureObservationKey } from "@/lib/architectureObservationKeys";
@@ -54,6 +55,7 @@ export default function Reading() {
           <div className="oracle-narrative fade-up"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-200" /><span className="eyebrow">The oracle speaks</span></div><p className="mt-6 font-display text-2xl leading-[1.55] text-amber-50 md:text-3xl">{reading.narrative}</p></div>
           <aside className="panel p-6 fade-up"><p className="eyebrow">Structural constellation</p><div className="mt-5 space-y-5"><MetricBar label="Complexity" value={metrics.complexityScore * 15} detail={metrics.complexityLevel.toUpperCase()} tone={metrics.complexityLevel === "high" ? "rose" : "violet"} /><MetricBar label="Test signal" value={metrics.testRatio * 100} detail={pct(metrics.testRatio)} tone="amber" /><MetricBar label="Commit current" value={Math.min(metrics.recentCommitCount * 5, 100)} detail={`${metrics.recentCommitCount} / 30D`} /><MetricBar label="Contributor orbit" value={Math.min(metrics.contributorCount * 10, 100)} detail={number.format(metrics.contributorCount)} tone="amber" /></div></aside>
         </section>
+        <PlainLanguageActions metrics={metrics} />
         <section className="mt-16"><div className="section-heading"><div><p className="eyebrow">Tarot spread</p><h2 className="font-display text-3xl text-amber-50">Three faces of the system</h2></div><span className="font-mono text-xs text-slate-500">01 — 03</span></div><div className="mt-8 grid gap-5 md:grid-cols-3">{tarot.map((card, index) => <TarotCardView key={`${card.position}-${card.cardName}`} card={card} index={index} />)}</div><div className="mt-5 grid gap-5 md:grid-cols-3">{tarot.map(card => <TarotCardDetail key={`${card.position}-detail`} card={card} />)}</div></section>
         <section className="mt-16 grid gap-6 lg:grid-cols-[0.72fr_1.28fr]"><div className="hexagram-card"><p className="eyebrow text-violet-100/70">I Ching</p><div className="my-7"><div className="hexagram-symbol">{iching.symbol ?? "☷"}</div><p className="font-mono text-xs tracking-[0.28em] text-amber-200">{iching.chineseName}</p></div><p className="font-display text-3xl text-amber-50">{iching.number}. {iching.name}</p></div><div className="panel p-7"><p className="eyebrow">The governing hexagram</p><blockquote className="mt-5 border-l border-amber-300/70 pl-5 font-display text-xl italic leading-relaxed text-amber-50">“{iching.classicalText}”</blockquote><p className="mt-6 text-sm leading-7 text-slate-300">{iching.developerInterpretation}</p><p className="mt-5 font-mono text-xs leading-5 text-violet-200">SIGNAL: {iching.trigger}</p></div></section>
         <IChingCastView cast={iching.cast} />

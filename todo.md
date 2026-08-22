@@ -65,3 +65,5 @@
 - [x] Verify, on the current running service without manually restarting it, that the authenticated Manus session and GitHub OAuth connection remain available; the current service served the private GitHub intake, persisted the account session, and loaded all authorized private repositories without a restart.
 - [x] Fix duplicate React keys in reading architecture observations and verify the console warning no longer occurs on affected readings.
 - [x] Reopen an affected reading and confirm the duplicate React key warning is absent; verify shared readings do not render the same duplicate-key pattern.
+- [x] Add a plain-English technical-action section to private and shared readings, grounded in repository signals, and validate it end to end.
+- [x] Open a shared reading URL and confirm the plain-English action section renders correctly without client errors.
