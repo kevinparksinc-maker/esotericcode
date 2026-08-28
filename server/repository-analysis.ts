@@ -28,11 +28,19 @@ function githubHeaders(accessToken?: string) {
 async function githubJson<T>(path: string, accessToken?: string): Promise<T> {
   const response = await fetch(`https://api.github.com${path}`, { headers: githubHeaders(accessToken) });
   if (!response.ok) {
-    if (response.status === 404) throw new Error("GitHub could not find that repository. Confirm the URL or connect GitHub for private repositories.");
+    if (response.status === 404) throw new Error("GitHub could not find that repository. Confirm the URL.");
     if (response.status === 403) throw new Error("GitHub rate limited this request. Please wait a moment and try again.");
     throw new Error("GitHub could not read this repository right now. Please try again.");
   }
   return response.json() as Promise<T>;
+}
+
+async function optionalGithubJson<T>(path: string, fallback: T, accessToken?: string): Promise<T> {
+  try {
+    return await githubJson<T>(path, accessToken);
+  } catch {
+    return fallback;
+  }
 }
 
 function encodeSegment(value: string) {
@@ -105,8 +113,8 @@ export async function analyzeGitHubRepository(repositoryUrl: string, source: "pu
   const repository = await githubJson<GitHubRepository>(`/repos/${encoded}`, accessToken);
   const [treeResult, contributors, commits] = await Promise.all([
     githubJson<{ tree: GitHubTreeItem[]; truncated?: boolean }>(`/repos/${encoded}/git/trees/${encodeSegment(repository.default_branch)}?recursive=1`, accessToken),
-    githubJson<Array<unknown>>(`/repos/${encoded}/contributors?per_page=100`, accessToken),
-    githubJson<Array<unknown>>(`/repos/${encoded}/commits?per_page=100&since=${encodeURIComponent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())}`, accessToken),
+    optionalGithubJson<Array<unknown>>(`/repos/${encoded}/contributors?per_page=100`, [], accessToken),
+    optionalGithubJson<Array<unknown>>(`/repos/${encoded}/commits?per_page=100&since=${encodeURIComponent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())}`, [], accessToken),
   ]);
   const tree = treeResult.tree.filter(item => item.type === "blob");
   const paths = tree.map(item => item.path);

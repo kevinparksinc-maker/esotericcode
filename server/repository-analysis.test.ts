@@ -28,4 +28,19 @@ describe("repository analysis", () => {
     expect(result.architecture.entryPoints).toContain("client/src/main.tsx");
     expect(result.architecture.topModules[0]).toEqual({ path: "server", files: 2 });
   });
+
+  it("keeps the reading available when optional enrichment endpoints fail", async () => {
+    const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(response({ full_name: "octo/oracle", name: "oracle", owner: { login: "octo" }, html_url: "https://github.com/octo/oracle", default_branch: "main", description: null, language: null }))
+      .mockResolvedValueOnce(response({ truncated: false, tree: [{ path: "README.md", type: "blob", size: 120 }] }))
+      .mockResolvedValueOnce(response({ message: "rate limited" }, 403))
+      .mockResolvedValueOnce(response({ message: "rate limited" }, 403)));
+
+    const result = await analyzeGitHubRepository("https://github.com/octo/oracle", "public");
+
+    expect(result.metrics.fileCount).toBe(1);
+    expect(result.metrics.contributorCount).toBe(0);
+    expect(result.metrics.recentCommitCount).toBe(0);
+  });
 });

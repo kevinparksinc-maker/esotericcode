@@ -9,3 +9,15 @@ The reading surfaces should always place measurable repository evidence before o
 ## Verification Note
 
 The live preview was checked with `https://github.com/octocat/Hello-World`. The public intake accepted the repository URL and opened its reading directly, with no EsotericCode sign-in, GitHub authorization, email link, or verification prompt.
+
+## Mobile intake bug
+
+A mobile screenshot showed a valid public URL ending in `kevinparksinc-maker/esotericcode` returning a generic GitHub read error. The URL field is horizontally scrolled to the end on narrow screens, which makes the value appear clipped but does not alter the submitted value. Public analysis now treats contributor and recent-commit enrichment as optional so rate limits or delayed GitHub responses do not block a valid repository reading; repository identity and the file tree remain required.
+
+## Production verification
+
+On the public domain, `https://github.com/kevinparksinc-maker/esotericcode` now opens a complete reading for 158 measured files. The valid URL is accepted without sign-in. Optional contributor and recent-commit endpoint failures no longer prevent the core repository and tree analysis from completing.
+
+## Final mobile input verification
+
+At the narrow viewport, the complete entered repository URL is now rendered below the horizontally scrollable input in a wrapping line. This lets a visitor verify the exact URL before submitting, even when the input itself cannot display the entire long value at once.
