@@ -1,5 +1,27 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787879562029,
+      "tag": "0000_exotic_amphibian",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1787879873986,
+      "tag": "0001_cultured_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787881719798,
+      "tag": "0002_powerful_sunset_bain",
+      "breakpoints": true
+    }
+  ]
 }
