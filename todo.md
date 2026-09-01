@@ -17,3 +17,26 @@
 - [x] Make public GitHub repository analysis and reading display available immediately to anonymous visitors.
 - [x] Fix mobile public repository intake failures caused by optional GitHub endpoint errors and verify the submitted URL remains legible.
 - [x] Improve mobile repository URL legibility while editing and capture final narrow-viewport verification.
+
+- [x] Compare planetary-position calculations in The Firmament, Unified Firmament, and Firmament Engine; exclude EsotericCode.
+- [x] Standardize The Firmament, Firmament Unified, and Firmament Engine on permanent raw fixed-dome planetary positions with no ayanamsa, precession, nutation, or obliquity correction.
+- [ ] Resolve The Firmament and Firmament Unified TypeScript/build errors and rerun full validation after the fixed-dome refactor.
+- [x] Replace or fully justify zeroed equatorial/horizon outputs in the sibling ephemeris modules and verify downstream consumers.
+- [x] Run app-level verification for The Firmament and Firmament Unified to confirm fixed-dome calculations are active in runtime flows.
+- [ ] Run real application-level validation for The Firmament and Firmament Unified with at least one chart flow consuming the fixed-dome ephemeris.
+- [ ] Add focused integration coverage for downstream consumers of `ra`, `dec`, `altitude`, and `azimuth` in both sibling repositories.
+- [x] Resolve or isolate remaining pre-existing TypeScript/build errors in The Firmament and Firmament Unified after the ephemeris refactor; remaining errors are outside the modified fixed-dome files.
+- [x] Restore individualized Ascendant and local house cusps by birth time and location across all three Firmament repositories while keeping the dome fixed and zero-tilt.
+- [x] Prove Ascendant varies for different observer/time inputs while planetary fixed-dome longitudes remain free of precession, nutation, obliquity, axial tilt, and ayanamsa.
+- [x] Validate downstream prediction consumers and document the corrected fixed-dome/local-horizon distinction.
+- [x] Remove remaining permanent-Aries downstream house overrides in The Firmament and Unified Firmament so local Ascendant cusps survive prediction assembly.
+- [x] Add downstream regression coverage proving local Ascendant house changes affect prediction assignments without changing fixed planetary longitudes.
+- [x] Compare actual natal/transit feature depth between The Firmament and Unified Firmament.
+- [x] Compare actual sports-prediction feature depth between The Firmament, Unified Firmament, and Firmament Engine.
+- [x] Deliver an evidence-based product assignment without modifying application logic.
+- [ ] Prepare Unified Firmament as the separately labeled sports-prediction deployment without changing calculation or prediction logic.
+- [ ] Validate and publish the sports-prediction deployment, documenting any required secrets or unresolved build limitations.
+- [x] Commit and push the latest upgraded changes for The Firmament, Unified Firmament, and Firmament Engine to their existing GitHub repositories.
+- [x] Verify each remote branch contains the pushed upgrade commit.
+- [x] Verify and push the latest EsotericCode app changes to its authorized GitHub repository; the active version will be preserved on a separate branch because GitHub main has newer unrelated history.
+- [ ] Confirm the EsotericCode `manus-esotericcode-sync` branch matches the pushed local commit.
