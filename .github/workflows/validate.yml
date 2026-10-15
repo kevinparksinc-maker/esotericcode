@@ -19,7 +19,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: TypeScript check
         run: pnpm check
-      - name: Unit and integration tests
-        run: pnpm test
+      - name: Offline unit tests (credential integration suite runs against deployment)
+        env:
+          JWT_SECRET: ci-only-test-key-do-not-use-in-production
+        run: pnpm exec vitest run --exclude server/github-oauth-credentials.test.ts
       - name: Production compile
         run: pnpm build
