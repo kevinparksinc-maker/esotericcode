@@ -6,6 +6,7 @@ import { I_CHING_HEXAGRAMS, TAROT_DECK } from "./divination-library";
 import { KP_PLANETS } from "./kp-astrology";
 import { createDivination, extractRepositoryMetrics, extractUploadedZipMetrics, parseGitHubRepositoryUrl } from "./esoteric";
 import { decryptGitHubToken } from "./github-crypto";
+import { enhanceDivinationNarrative } from "./gemini-synthesis";
 import { listConnectedGitHubRepositories } from "./github-api";
 import { ZIP_UPLOAD_LIMIT } from "./repository-analysis";
 import { storagePut } from "./storage";
@@ -44,7 +45,7 @@ export const appRouter = router({
       if (!connection) throw new Error("Connect GitHub before analyzing a private repository.");
       const identity = parseGitHubRepositoryUrl(input.fullName);
       const metrics = await extractRepositoryMetrics(identity.normalizedUrl, decryptGitHubToken(connection.accessTokenEncrypted));
-      const divination = createDivination(metrics);
+      const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
       const id = await createReading({ userId: ctx.user.id, repositoryUrl: metrics.repositoryUrl, repositoryOwner: metrics.owner, repositoryName: metrics.name, shareSlug: nanoid(12), isShared: false, metrics, tarot: divination.tarot, iching: divination.iching, narrative: divination.narrative });
       return { id };
     }),
@@ -55,7 +56,7 @@ export const appRouter = router({
       .input(z.object({ repositoryUrl: z.string().min(3).max(512) }))
       .mutation(async ({ input, ctx }) => {
         const metrics = await extractRepositoryMetrics(input.repositoryUrl);
-        const divination = createDivination(metrics);
+        const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
         const id = await createReading({
           userId: ctx.user.id,
           repositoryUrl: metrics.repositoryUrl,
@@ -79,7 +80,7 @@ export const appRouter = router({
         const normalizedFileName = input.fileName.replace(/[^A-Za-z0-9._-]/g, "_");
         const metrics = await extractUploadedZipMetrics(normalizedFileName, archive);
         const storedArchive = await storagePut(`repository-uploads/${ctx.user.id}/${nanoid(10)}-${normalizedFileName}`, archive, "application/zip");
-        const divination = createDivination(metrics);
+        const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
         const id = await createReading({
           userId: ctx.user.id,
           repositoryUrl: metrics.repositoryUrl,
