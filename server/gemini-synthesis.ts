@@ -9,7 +9,7 @@ export async function synthesizeReadingWithGemini(
   const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the server.");
 
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new Error("Invalid GEMINI_MODEL.");
 
   const evidence = {
@@ -83,5 +83,48 @@ export async function enhanceDivinationNarrative(
   } catch (error) {
     console.error("Gemini synthesis failed; retaining computed reading:", error instanceof Error ? error.message : String(error));
     return divination;
+  }
+}
+
+
+/** One small private startup probe; never logs credentials or model output. */
+export async function verifyGeminiOnStartup(): Promise<void> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  if (!apiKey) {
+    console.error("[Gemini verification] FAILED: GEMINI_API_KEY missing");
+    return;
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(model)) {
+    console.error("[Gemini verification] FAILED: invalid model identifier");
+    return;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }], generationConfig: { maxOutputTokens: 30 } }),
+          signal: controller.signal,
+        },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      console.error(`[Gemini verification] FAILED: HTTP ${response.status} model=${model}`);
+      await response.body?.cancel();
+      return;
+    }
+    const parsed = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const hasText = Boolean(parsed.candidates?.[0]?.content?.parts?.some(p => typeof p.text === "string" && p.text.trim()));
+    console.info(`[Gemini verification] ${hasText ? "SUCCESS" : "FAILED: no text"} model=${model}`);
+  } catch (error) {
+    console.error(`[Gemini verification] FAILED: ${error instanceof Error && error.name === "AbortError" ? "timeout" : "network error"}`);
   }
 }
