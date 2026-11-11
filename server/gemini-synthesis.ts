@@ -9,7 +9,7 @@ export async function synthesizeReadingWithGemini(
   const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured on the server.");
 
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new Error("Invalid GEMINI_MODEL.");
 
   const evidence = {
@@ -90,7 +90,7 @@ export async function enhanceDivinationNarrative(
 /** One small private startup probe; never logs credentials or model output. */
 export async function verifyGeminiOnStartup(): Promise<void> {
   const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
   if (!apiKey) {
     console.error("[Gemini verification] FAILED: GEMINI_API_KEY missing");
     return;
