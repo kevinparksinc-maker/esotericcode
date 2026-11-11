@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerGitHubOAuthRoutes } from "../github-oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
+import { verifyGeminiOnStartup } from "../gemini-synthesis";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -62,6 +63,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    void verifyGeminiOnStartup();
   });
 }
 
