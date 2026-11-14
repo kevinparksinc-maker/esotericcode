@@ -139,12 +139,8 @@ export async function extractRepositoryMetrics(repositoryUrl: string, accessToke
     repositoryCreatedAt: repo.created_at,
     fetchedAt: new Date().toISOString(),
   };
-  let architecture;
-  try {
-    architecture = await analyzeRepositoryArchitecture({ owner: identity.owner, repo: identity.repo, branch: repo.default_branch, accessToken, repositoryFiles: blobs.length, recentCommitCount, mostRecentCommitAt: commits[0]?.commit?.author?.date });
-  } catch (error) {
-    console.warn("[Repository analysis] Architecture scan skipped:", error instanceof Error ? error.message : error);
-  }
+  // Source inspection is mandatory. Never present a metadata-only divination as a code reading.
+  const architecture = await analyzeRepositoryArchitecture({ owner: identity.owner, repo: identity.repo, branch: repo.default_branch, accessToken, repositoryFiles: blobs.length, recentCommitCount, mostRecentCommitAt: commits[0]?.commit?.author?.date });
   const enrichedMetrics = { ...metrics, architecture, source: { type: "github" as const, label: identity.normalizedUrl } };
   return { ...enrichedMetrics, kpChart: createRepositoryKpChart(enrichedMetrics) };
 }
