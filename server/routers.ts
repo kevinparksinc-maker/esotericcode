@@ -52,6 +52,13 @@ export const appRouter = router({
     disconnect: protectedProcedure.mutation(async ({ ctx }) => { await deleteGitHubConnection(ctx.user.id); return { success: true } as const; }),
   }),
   readings: router({
+    createGuest: publicProcedure
+      .input(z.object({ repositoryUrl: z.string().min(3).max(512) }))
+      .mutation(async ({ input }) => {
+        const metrics = await extractRepositoryMetrics(input.repositoryUrl);
+        const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
+        return { id: 0, createdAt: new Date(), isShared: false, shareSlug: "", metrics, tarot: divination.tarot, iching: divination.iching, narrative: divination.narrative };
+      }),
     create: protectedProcedure
       .input(z.object({ repositoryUrl: z.string().min(3).max(512) }))
       .mutation(async ({ input, ctx }) => {
