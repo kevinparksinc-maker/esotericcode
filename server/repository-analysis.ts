@@ -47,7 +47,7 @@ export function classifyRepositoryFile(path: string): RepositoryFileCategory {
 }
 
 function isTextCandidate(path: string, category: RepositoryFileCategory, bytes: number) {
-  return bytes <= TEXT_FILE_LIMIT && !isSensitive(path) && (TEXT_EXTENSIONS.has(extension(path)) || category !== "other");
+  return !isSensitive(path) && (TEXT_EXTENSIONS.has(extension(path)) || category !== "other") && (category === "source" || bytes <= TEXT_FILE_LIMIT);
 }
 
 async function readLimitedBody(response: Response) {
@@ -91,7 +91,7 @@ export async function parseRepositoryArchive(buffer: Buffer): Promise<{ entries:
       }
       const chunks: Buffer[] = [];
       let received = 0;
-      stream.on("data", (chunk: Buffer) => { received += chunk.length; if (received <= TEXT_FILE_LIMIT) chunks.push(chunk); });
+      stream.on("data", (chunk: Buffer) => { received += chunk.length; chunks.push(chunk); });
       stream.on("error", reject);
       stream.on("end", () => { entries.push({ path: rawPath, bytes, category, content: Buffer.concat(chunks).toString("utf8") }); next(); });
     });
@@ -124,7 +124,7 @@ export async function parseUploadedZip(buffer: Buffer): Promise<{ entries: Archi
     const category = classifyRepositoryFile(rawPath);
     if (!isTextCandidate(rawPath, category, bytes)) { entries.push({ path: rawPath, bytes, category }); continue; }
     const content = await file.buffer();
-    entries.push({ path: rawPath, bytes, category, content: content.subarray(0, TEXT_FILE_LIMIT).toString("utf8") });
+    entries.push({ path: rawPath, bytes, category, content: content.toString("utf8") });
   }
   return { entries, excludedNoiseFiles };
 }
@@ -151,21 +151,17 @@ function parseDependencies(entries: ArchiveEntry[]) {
 }
 
 function buildBatches(entries: ArchiveEntry[]) {
-  const modules = new Map<string, ArchiveEntry[]>();
-  for (const entry of entries.filter(item => item.content && ["source", "test", "config", "documentation", "manifest", "migration", "infrastructure"].includes(item.category))) {
-    const key = rootModule(entry.path);
-    modules.set(key, [...(modules.get(key) ?? []), entry]);
-  }
   const batches: Array<{ module: string; text: string }> = [];
-  modules.forEach((files, module) => {
-    let text = "";
-    for (const file of files) {
-      const block = `\n--- FILE: ${file.path} (${file.category}) ---\n${file.content}\n`;
-      if (text.length + block.length > MAX_BATCH_CHARS && text) { batches.push({ module, text }); text = ""; }
-      text += block;
+  for (const file of entries.filter(item => item.content !== undefined && ["source", "test", "config", "documentation", "manifest", "migration", "infrastructure"].includes(item.category))) {
+    const content = file.content ?? "";
+    const module = rootModule(file.path);
+    const chunkSize = MAX_BATCH_CHARS - 400;
+    const total = Math.max(1, Math.ceil(content.length / chunkSize));
+    for (let part = 0; part < total; part++) {
+      const chunk = content.slice(part * chunkSize, (part + 1) * chunkSize);
+      batches.push({ module: `${module} / ${file.path} [${part + 1}/${total}]`, text: `--- FILE: ${file.path} (${file.category}) PART ${part + 1} OF ${total} ---\n${chunk}` });
     }
-    if (text) batches.push({ module, text });
-  });
+  }
   return batches;
 }
 
@@ -234,10 +230,6 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   const allBatches = buildBatches(entries);
   if (!entries.some(entry => entry.category === "source" && entry.content !== undefined)) {
     throw new Error("No readable source code was found. A code reading requires source files, not GitHub metadata alone.");
-  }
-  const oversizedSource = entries.filter(entry => entry.category === "source" && entry.bytes > TEXT_FILE_LIMIT);
-  if (oversizedSource.length) {
-    throw new Error(`Complete code reading unavailable: ${oversizedSource.length} source files exceed the per-file scan limit. First: ${oversizedSource[0].path}`);
   }
   if (allBatches.length > MAX_LLM_BATCHES) {
     throw new Error(`Complete code reading requires ${allBatches.length} analysis batches, above the current ${MAX_LLM_BATCHES}-batch capacity. No partial reading was generated.`);
