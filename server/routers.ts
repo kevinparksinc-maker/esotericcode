@@ -9,6 +9,7 @@ import { decryptGitHubToken } from "./github-crypto";
 import { enhanceDivinationNarrative } from "./gemini-synthesis";
 import { listConnectedGitHubRepositories } from "./github-api";
 import { ZIP_UPLOAD_LIMIT } from "./repository-analysis";
+import { getZipJob, startZipJob } from "./zip-jobs";
 import { storagePut } from "./storage";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -52,6 +53,8 @@ export const appRouter = router({
     disconnect: protectedProcedure.mutation(async ({ ctx }) => { await deleteGitHubConnection(ctx.user.id); return { success: true } as const; }),
   }),
   readings: router({
+    startGuestZipJob: publicProcedure.input(z.object({ fileName: z.string().min(5).max(255).regex(/\.zip$/i), archiveBase64: z.string().min(8).max(17_000_000) })).mutation(({ input }) => startZipJob(input.fileName, input.archiveBase64)),
+    guestZipJobStatus: publicProcedure.input(z.object({ jobId: z.string().uuid() })).query(({ input }) => getZipJob(input.jobId)),
     createGuest: publicProcedure
       .input(z.object({ repositoryUrl: z.string().min(3).max(512) }))
       .mutation(async ({ input }) => {
