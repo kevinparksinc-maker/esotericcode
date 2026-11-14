@@ -78,6 +78,16 @@ export const appRouter = router({
         });
         return { id };
       }),
+    createGuestFromZip: publicProcedure
+      .input(z.object({ fileName: z.string().min(5).max(255).regex(/\\.zip$/i, "Upload a .zip archive."), archiveBase64: z.string().min(8).max(17_000_000) }))
+      .mutation(async ({ input }) => {
+        const archive = Buffer.from(input.archiveBase64, "base64");
+        if (archive.length === 0 || archive.length > ZIP_UPLOAD_LIMIT) throw new Error("ZIP archives must be 12 MB or smaller.");
+        if (archive[0] !== 0x50 || archive[1] !== 0x4b) throw new Error("The uploaded file is not a valid ZIP archive.");
+        const metrics = await extractUploadedZipMetrics(input.fileName.replace(/[^A-Za-z0-9._-]/g, "_"), archive);
+        const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
+        return { id: 0, createdAt: new Date(), isShared: false, shareSlug: "", metrics, tarot: divination.tarot, iching: divination.iching, narrative: divination.narrative };
+      }),
     createFromZip: protectedProcedure
       .input(z.object({ fileName: z.string().min(5).max(255).regex(/\.zip$/i, "Upload a .zip archive."), archiveBase64: z.string().min(8).max(17_000_000) }))
       .mutation(async ({ input, ctx }) => {
