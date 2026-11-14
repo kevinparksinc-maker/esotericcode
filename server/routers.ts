@@ -79,7 +79,7 @@ export const appRouter = router({
         return { id };
       }),
     createGuestFromZip: publicProcedure
-      .input(z.object({ fileName: z.string().min(5).max(255).regex(/\\.zip$/i, "Upload a .zip archive."), archiveBase64: z.string().min(8).max(17_000_000) }))
+      .input(z.object({ fileName: z.string().min(5).max(255).regex(/\.zip$/i, "Upload a .zip archive."), archiveBase64: z.string().min(8).max(17_000_000) }))
       .mutation(async ({ input }) => {
         const archive = Buffer.from(input.archiveBase64, "base64");
         if (archive.length === 0 || archive.length > ZIP_UPLOAD_LIMIT) throw new Error("ZIP archives must be 12 MB or smaller.");
