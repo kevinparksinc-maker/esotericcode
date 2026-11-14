@@ -10,7 +10,8 @@ type AnalysisInput = { owner?: string; repo?: string; branch?: string; accessTok
 
 const ARCHIVE_COMPRESSED_LIMIT = 24 * 1024 * 1024;
 const TEXT_FILE_LIMIT = 96 * 1024;
-const MAX_LLM_BATCHES = 12;
+// Explicit safety ceiling: fail visibly instead of silently claiming complete AI coverage.
+const MAX_LLM_BATCHES = 120;
 const MAX_BATCH_CHARS = 18_000;
 export const ZIP_UPLOAD_LIMIT = 12 * 1024 * 1024;
 const ZIP_ENTRY_LIMIT = 1000;
@@ -201,7 +202,7 @@ async function synthesizeArchitecture(structured: Omit<RepositoryArchitecture, "
     });
     const content = response.choices[0]?.message.content;
     return typeof content === "string" ? (JSON.parse(content) as { summary: string }).summary : fallback;
-  } catch { return fallback; }
+  } catch { throw new Error("Unified code analysis failed. No incomplete reading was generated."); }
 }
 
 async function fetchSelectedFileRecency(input: AnalysisInput, paths: string[]) {
@@ -231,10 +232,23 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   const recentlyTouchedFiles = await fetchSelectedFileRecency(input, largestFiles.map(file => file.path));
   const structured = { analysisMode: "bounded full-tree architecture scan" as const, coverage: { repositoryFiles: input.repositoryFiles, inspectedTextFiles: entries.filter(entry => entry.content).length, excludedNoiseFiles, contentBatches: 0, unprocessedTextFiles: 0 }, categoryCounts: categories, topLevelModules, entryPoints, importEdges, dependencyCount: dependencies.length, dependencies: dependencies.slice(0, 40), testDirectories, maintenanceMarkers, largestFiles, recency: { recentCommitCount: input.recentCommitCount, mostRecentCommitAt: input.mostRecentCommitAt, recentlyTouchedFiles } };
   const allBatches = buildBatches(entries);
-  const selectedBatches = allBatches.slice(0, MAX_LLM_BATCHES);
+  if (!entries.some(entry => entry.category === "source" && entry.content !== undefined)) {
+    throw new Error("No readable source code was found. A code reading requires source files, not GitHub metadata alone.");
+  }
+  const oversizedSource = entries.filter(entry => entry.category === "source" && entry.bytes > TEXT_FILE_LIMIT);
+  if (oversizedSource.length) {
+    throw new Error(`Complete code reading unavailable: ${oversizedSource.length} source files exceed the per-file scan limit. First: ${oversizedSource[0].path}`);
+  }
+  if (allBatches.length > MAX_LLM_BATCHES) {
+    throw new Error(`Complete code reading requires ${allBatches.length} analysis batches, above the current ${MAX_LLM_BATCHES}-batch capacity. No partial reading was generated.`);
+  }
+  const selectedBatches = allBatches;
   const moduleSummaries = await Promise.all(selectedBatches.map(batch => summarizeBatch(batch.module, batch.text)));
   structured.coverage.contentBatches = selectedBatches.length;
-  structured.coverage.unprocessedTextFiles = Math.max(0, allBatches.length - selectedBatches.length);
+  structured.coverage.unprocessedTextFiles = 0;
+  if (moduleSummaries.some(summary => summary.summary.startsWith("Structural scan of "))) {
+    throw new Error("Source-code AI analysis failed for one or more modules. No metadata-only reading was generated.");
+  }
   const unifiedSummary = await synthesizeArchitecture(structured, moduleSummaries);
   return { ...structured, moduleSummaries, unifiedSummary, synthesisMethod: "batched module summaries followed by one unified synthesis" };
 }
