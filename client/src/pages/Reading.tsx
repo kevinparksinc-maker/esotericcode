@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import type { KpAstrologyChart, RepositoryArchitecture } from "@shared/esoteric";
 import { ArrowLeft, Check, Copy, ExternalLink, Loader2, Share2, Sparkles } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const number = new Intl.NumberFormat("en-US");
 const pct = (value: number) => `${Math.round(value * 100)}%`;
@@ -19,10 +19,15 @@ export default function Reading() {
   const [, params] = useRoute("/reading/:id");
   const [, setLocation] = useLocation();
   const { isAuthenticated, loading } = useAuth();
+  const isGuest = params?.id === "guest";
+  const [guestReading] = useState<any>(() => {
+    if (typeof window === "undefined" || !isGuest) return null;
+    try { return JSON.parse(sessionStorage.getItem("esoteric-guest-reading") || "null"); } catch { return null; }
+  });
   const id = Number(params?.id);
-  const query = trpc.readings.get.useQuery({ id }, { enabled: isAuthenticated && Number.isFinite(id) });
+  const query = trpc.readings.get.useQuery({ id }, { enabled: !isGuest && isAuthenticated && Number.isFinite(id) });
   const share = trpc.readings.share.useMutation();
-  const reading = query.data;
+  const reading = isGuest ? guestReading : query.data;
   const shareUrl = reading?.isShared ? `${window.location.origin}/share/${reading.shareSlug}` : null;
 
   const handleShare = async () => {
@@ -34,19 +39,19 @@ export default function Reading() {
   };
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) setLocation("/");
-  }, [isAuthenticated, loading, setLocation]);
+    if (!isGuest && !loading && !isAuthenticated) setLocation("/");
+  }, [isGuest, isAuthenticated, loading, setLocation]);
 
-  if (loading || query.isLoading) return <LoadingState />;
-  if (!isAuthenticated) return <AccessRedirect />;
-  if (query.isError) return <ReadingRequestError onRetry={() => query.refetch()} />;
+  if (!isGuest && (loading || query.isLoading)) return <LoadingState />;
+  if (!isGuest && !isAuthenticated) return <AccessRedirect />;
+  if (!isGuest && query.isError) return <ReadingRequestError onRetry={() => query.refetch()} />;
   if (!reading) return <NotFoundReading />;
   const { metrics, tarot, iching } = reading;
   const kp = metrics.kpChart;
 
   return (
     <div className="oracle-shell min-h-screen">
-      <header className="page-header"><Link href="/" className="focus-ring"><OracleMark /></Link><div className="flex items-center gap-2"><Link href="/history"><Button variant="ghost" className="text-slate-300 hover:bg-white/5 hover:text-white">Archive</Button></Link><Button className="mystic-button h-10" onClick={handleShare} disabled={share.isPending}>{share.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : shareUrl ? <Check className="mr-2 h-4 w-4" /> : <Share2 className="mr-2 h-4 w-4" />}{shareUrl ? "Link copied" : "Share reading"}</Button></div></header>
+      <header className="page-header"><Link href="/" className="focus-ring"><OracleMark /></Link><div className="flex items-center gap-2"><Link href="/history"><Button variant="ghost" className="text-slate-300 hover:bg-white/5 hover:text-white">Archive</Button></Link><Button className="mystic-button h-10" onClick={handleShare} style={{display: isGuest ? "none" : undefined}} disabled={share.isPending}>{share.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : shareUrl ? <Check className="mr-2 h-4 w-4" /> : <Share2 className="mr-2 h-4 w-4" />}{shareUrl ? "Link copied" : "Share reading"}</Button></div></header>
       <main className="mx-auto max-w-6xl px-5 pb-20 pt-10 md:px-8">
         <div className="fade-up flex flex-col gap-5 border-b border-white/10 pb-8 md:flex-row md:items-end md:justify-between">
           <div><p className="eyebrow">Repository reading · {new Date(reading.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</p><h1 className="mt-3 font-display text-4xl text-amber-50 md:text-6xl">{metrics.owner}<span className="text-violet-300">/</span>{metrics.name}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{metrics.description || "A codebase examined through the converging lenses of architecture and archetype."}</p></div><a href={metrics.repositoryUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 self-start font-mono text-xs text-violet-200 transition hover:text-amber-200 md:self-auto">OPEN REPOSITORY <ExternalLink className="h-3.5 w-3.5" /></a></div>
