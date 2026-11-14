@@ -11,7 +11,7 @@ type AnalysisInput = { owner?: string; repo?: string; branch?: string; accessTok
 const ARCHIVE_COMPRESSED_LIMIT = 24 * 1024 * 1024;
 const TEXT_FILE_LIMIT = 96 * 1024;
 // Explicit safety ceiling: fail visibly instead of silently claiming complete AI coverage.
-const MAX_LLM_BATCHES = 120;
+const MAX_LLM_BATCHES = 1000;
 const MAX_BATCH_CHARS = 18_000;
 export const ZIP_UPLOAD_LIMIT = 12 * 1024 * 1024;
 const ZIP_ENTRY_LIMIT = 1000;
@@ -235,13 +235,30 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     throw new Error(`Complete code reading requires ${allBatches.length} analysis batches, above the current ${MAX_LLM_BATCHES}-batch capacity. No partial reading was generated.`);
   }
   const selectedBatches = allBatches;
-  const moduleSummaries = await Promise.all(selectedBatches.map(batch => summarizeBatch(batch.module, batch.text)));
+  const moduleSummaries: RepositoryArchitecture["moduleSummaries"] = [];
+  for (let offset = 0; offset < selectedBatches.length; offset += 4) {
+    const group = selectedBatches.slice(offset, offset + 4);
+    const results = await Promise.all(group.map(batch => summarizeBatch(batch.module, batch.text)));
+    moduleSummaries.push(...results);
+  }
   structured.coverage.contentBatches = selectedBatches.length;
   structured.coverage.unprocessedTextFiles = 0;
   if (moduleSummaries.some(summary => summary.summary.startsWith("Structural scan of "))) {
     throw new Error("Source-code AI analysis failed for one or more modules. No metadata-only reading was generated.");
   }
-  const unifiedSummary = await synthesizeArchitecture(structured, moduleSummaries);
+  // Reduce the full set of source summaries hierarchically to keep synthesis within model context.
+  let synthesisSummaries = moduleSummaries;
+  while (JSON.stringify(synthesisSummaries).length > 60_000) {
+    const next: typeof moduleSummaries = [];
+    for (let offset = 0; offset < synthesisSummaries.length; offset += 16) {
+      const group = synthesisSummaries.slice(offset, offset + 16);
+      const compressed = await summarizeBatch("Architecture group " + (Math.floor(offset / 16) + 1), JSON.stringify(group).slice(0, MAX_BATCH_CHARS));
+      if (compressed.summary.startsWith("Structural scan of ")) throw new Error("Hierarchical source analysis failed; no partial reading generated.");
+      next.push(compressed);
+    }
+    synthesisSummaries = next;
+  }
+  const unifiedSummary = await synthesizeArchitecture(structured, synthesisSummaries);
   return { ...structured, moduleSummaries, unifiedSummary, synthesisMethod: "batched module summaries followed by one unified synthesis" };
 }
 
