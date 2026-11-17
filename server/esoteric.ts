@@ -137,6 +137,7 @@ export async function extractRepositoryMetrics(repositoryUrl: string, accessToke
     complexityScore,
     complexitySignals,
     repositoryCreatedAt: repo.created_at,
+    historyAvailable: true,
     fetchedAt: new Date().toISOString(),
   };
   // Source inspection is mandatory. Never present a metadata-only divination as a code reading.
@@ -171,7 +172,7 @@ export async function extractUploadedZipMetrics(fileName: string, archive: Buffe
     repositoryUrl: `upload://${safeName}.zip`, owner: "uploaded", name: safeName, description: "User-uploaded ZIP repository archive.", defaultBranch: "archive",
     primaryLanguage: null, languages: [], fileCount, sourceFileCount, testFileCount, testRatio, contributorCount: 1, recentCommitCount: 0, averageCommitsPerWeek: 0,
     directoryDepth: architecture.topLevelModules.length > 1 ? 2 : 1, averageSourceFileSize: 0, largestSourceFileSize, complexityLevel, complexityScore, complexitySignals,
-    repositoryCreatedAt: new Date().toISOString(), fetchedAt: new Date().toISOString(), architecture, source: { type: "zip", label: "Uploaded ZIP archive", originalFileName: fileName },
+    repositoryCreatedAt: "", historyAvailable: false, fetchedAt: new Date().toISOString(), architecture, source: { type: "zip", label: "Uploaded ZIP archive", originalFileName: fileName },
   };
   return { ...metrics, kpChart: createRepositoryKpChart(metrics) };
 }
