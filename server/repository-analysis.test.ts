@@ -69,28 +69,23 @@ describe("repository architecture ingestion", () => {
     await expect(parseUploadedZip(Buffer.from("this is not a ZIP archive"))).rejects.toThrow();
   });
 
-  it("runs a real ZIP through the complete architecture, metrics, and KP path with a deterministic Gemini mock", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "local-test-key");
-    vi.stubGlobal("fetch", vi.fn(async (_url: string, options: RequestInit) => {
-      const request = JSON.parse(String(options.body));
-      const isModule = Boolean(request.generationConfig.responseJsonSchema.properties.responsibilities);
-      const text = JSON.stringify(isModule
-        ? { summary: "Fixture module analyzed", responsibilities: ["Expose fixture code"], risks: [] }
-        : { summary: "Fixture architecture synthesized" });
-      return { ok: true, json: async () => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text }] } }] }) };
-    }));
+  it("scans ZIP architecture locally without calling Gemini", async () => {
+    const fetchMock = vi.fn(async () => { throw new Error("AI scanning is forbidden"); });
+    vi.stubGlobal("fetch", fetchMock);
     try {
       const metrics = await extractUploadedZipMetrics("fixture.zip", await buildFixtureZip());
       expect(metrics.source).toEqual({ type: "zip", label: "Uploaded ZIP archive", originalFileName: "fixture.zip" });
       expect(metrics.architecture?.coverage.inspectedTextFiles).toBeGreaterThan(0);
       expect(metrics.architecture?.coverage.failedBatches).toBe(0);
+      expect(metrics.architecture?.coverage.contentBatches).toBe(0);
       expect(metrics.architecture?.categoryCounts.source).toBe(1);
       expect(metrics.architecture?.categoryCounts.documentation).toBe(1);
-      expect(metrics.architecture?.unifiedSummary).toBe("Fixture architecture synthesized");
+      expect(metrics.architecture?.unifiedSummary).toContain("Local static architecture scan");
+      expect(metrics.architecture?.moduleSummaries.some(module => module.module === "src")).toBe(true);
       expect(metrics.kpChart?.framework).toBe("Repository symbolic chart");
+      expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
-      vi.unstubAllEnvs();
     }
   }, 90_000);
 });
