@@ -34,7 +34,7 @@ export type IChingLine = {
   interpretation: string;
 };
 export type IChingCast = {
-  method: "deterministic repository casting";
+  method: "deterministic repository casting" | "code-fingerprint three-coin casting";
   mode: "static" | "changing";
   lines: IChingLine[];
   changingLineNumbers: number[];
