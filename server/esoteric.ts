@@ -1,6 +1,6 @@
 import type { IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
 
-import { castCompleteIChing, drawCompleteTarot } from "./divination-library";
+import { castFromCode } from "./divination-library";
 import { createRepositoryKpChart } from "./kp-astrology";
 import { analyzeRepositoryArchitecture, analyzeUploadedZipArchitecture } from "./repository-analysis";
 
@@ -259,8 +259,8 @@ function mapIChing(metrics: RepositoryMetrics): IChingReading {
 }
 
 export function createDivination(metrics: RepositoryMetrics): { tarot: TarotCard[]; iching: IChingReading; narrative: string } {
-  const tarot = drawCompleteTarot(metrics);
-  const iching = castCompleteIChing(metrics);
+  const { tarot, iching, record } = castFromCode(metrics);
+  metrics.castingRecord = record;
   const kp = metrics.kpChart ?? createRepositoryKpChart(metrics);
   const foundation = tarot[0];
   const fracture = tarot[1];
