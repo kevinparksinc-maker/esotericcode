@@ -25,7 +25,7 @@ export async function synthesizeReadingWithGemini(
       entryPoints: metrics.architecture.entryPoints,
       maintenance: metrics.architecture.maintenanceMarkers,
       auditMethod: metrics.architecture.auditMethod,
-      auditFindings: metrics.architecture.auditFindings.slice(0, 100)
+      auditFindings: metrics.architecture.auditFindings
     } : null,
     casting: metrics.castingRecord ? { algorithm: metrics.castingRecord.algorithm, sourceFingerprint: metrics.castingRecord.sourceFingerprint, tarotIndices: metrics.castingRecord.tarotIndices, tarotReversed: metrics.castingRecord.tarotReversed, ichingCoins: metrics.castingRecord.ichingCoins } : null,
     tarot: tarot.map(card => ({
@@ -34,7 +34,9 @@ export async function synthesizeReadingWithGemini(
       action: card.technicalActionable
     })),
     iching: { number: iching.number, name: iching.name, meaning: iching.developerInterpretation,
-      trigger: iching.trigger, changingLines: iching.cast?.changingLineNumbers },
+      trigger: iching.trigger, changingLines: iching.cast?.changingLineNumbers,
+      lines: iching.cast?.lines.map(line => ({ position: line.position, value: line.value, polarity: line.polarity, changing: line.changing, interpretation: line.interpretation })),
+      relatingHexagram: iching.cast?.relatingHexagram, transformationSummary: iching.cast?.transformationSummary },
     kp: metrics.kpChart ? {
       house: metrics.kpChart.activeHouse, nakshatra: metrics.kpChart.nakshatra,
       starLord: metrics.kpChart.starLord, subLord: metrics.kpChart.subLord,
@@ -53,9 +55,9 @@ export async function synthesizeReadingWithGemini(
         signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
-            "You are EsotericCode's repository reading synthesizer. Interpret an independently randomized Tarot and I Ching cast against the separately observed code-audit evidence. The audit does not select the cards or hexagrams. Explain the symbolism and potential resonances without claiming the casting reveals factual software defects. Address the developer in second person. Be incisive, practical, specific and readable. Treat the symbolic interpretations as metaphor, never a scientific measurement. Do not invent files, problems, performance data, or astrological facts. Explain the offline audit findings with file path and line evidence, prioritize actionable warnings, and make clear that heuristic findings need verification; do not claim static scanning proves runtime behavior. Respect all methods and reconcile them into one cohesive reading. Give concrete recommendations grounded in evidence; distinguish observations from symbolic analogy. Return 2-4 substantial paragraphs only." }] },
+            "You are EsotericCode's evidence-grounded divination synthesizer. The independent Tarot and I Ching cast was generated before interpretation; NEVER change or choose its symbols to fit the audit. Speak directly to the developer in clear, compelling second-person language. First integrate the three Tarot positions and each card's upright/reversed expression into one coherent narrative; include the governing I Ching hexagram, the six line states, every changing line if present, and the relating hexagram only if present. Weave in the KP-inspired house, Nakshatra, star lord, sub-lord and symbolic cross-system connections without pretending they are astronomical measurements. Interpret all systems together in the context of the actual repository audit, not as three disconnected lists. Distinguish the symbolic reflection from objectively observed code evidence; never claim that a symbol proved a bug. Every reported scanner/auditor finding matters and must be preserved, even if the rule labels it INFO. Never call a finding small, minor, trivial, harmless, ignorable, unimportant, or safe to skip. Never quietly discard findings or dismiss them because the scanner uses heuristics. A heuristic finding requires investigation, not a verdict of correctness or incorrectness. Enumerate every provided finding with file path and line number in a clear actionable resolution ledger; group repeated instances by rule but retain every exact source location. For each distinct issue explain what was observed, what might fail, how to verify it in the relevant source context, a concrete correction if confirmed, and how to test the correction. Do not invent code contents, confirmed failures, priorities, dates, or test outcomes. Where information cannot establish a definite defect, say 'verification required' and specify the exact inspection; do not claim fixed until verified. Do not recommend suppressing or ignoring an error just to make an audit clean. Provide an integrated divination interpretation followed by a complete engineering action ledger and a sensible sequence for verifying and repairing findings. Ensure the interpretation is substantial, specific, and internally consistent rather than boilerplate." }] },
           contents: [{ role: "user", parts: [{ text: JSON.stringify(evidence) }] }],
-          generationConfig: { maxOutputTokens: 950, temperature: 0.55 }
+          generationConfig: { maxOutputTokens: 3000, temperature: 0.45 }
         })
       }
     );
