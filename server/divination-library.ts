@@ -1,4 +1,5 @@
-import type { IChingCast, IChingLine, IChingLineValue, IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
+import type { CastingRecord, IChingCast, IChingLine, IChingLineValue, IChingReading, RepositoryMetrics, TarotCard } from "@shared/esoteric";
+import { createHash, randomBytes } from "node:crypto";
 
 export type SignalKey = "activity" | "change" | "stability" | "testing" | "complexity" | "risk" | "collaboration" | "scale" | "maintenance" | "craft" | "growth";
 type Profile = Record<SignalKey, number>;
@@ -269,52 +270,78 @@ function toDraw(entry: TarotEntry, position: string, metrics: RepositoryMetrics)
   };
 }
 
-export function drawCompleteTarot(metrics: RepositoryMetrics): TarotCard[] {
-  const profile = createSignalProfile(metrics);
-  const used = new Set<string>();
-  const foundationEntry = metrics.contributorCount >= 8 ? TAROT_DECK.find(card => card.cardName === "The World")! : pickFrom(TAROT_DECK, profile, `${metrics.repositoryUrl}:foundation`);
-  used.add(foundationEntry.id);
-  const fractureEntry = metrics.complexityLevel === "high" ? TAROT_DECK.find(card => card.cardName === "The Tower")! : pickFrom(TAROT_DECK, { ...profile, complexity: Math.max(profile.complexity, .68), risk: Math.max(profile.risk, .62) }, `${metrics.repositoryUrl}:fracture`, used);
-  used.add(fractureEntry.id);
-  const passageEntry = pickFrom(TAROT_DECK, { ...profile, activity: Math.max(profile.activity, .48), change: Math.max(profile.change, .42) }, `${metrics.repositoryUrl}:passage`, used);
-  return [toDraw(foundationEntry, "Foundation", metrics), toDraw(fractureEntry, "The Fracture", metrics), toDraw(passageEntry, "The Passage", metrics)];
+// The symbolic cast is deliberately independent of diagnosis or risk scores.
+// Source data supplies the fingerprint; fresh CSPRNG entropy supplies independent variation.
+class CodeCastRng {
+  private counter = 0;
+  private pool = Buffer.alloc(0);
+  private offset = 0;
+  constructor(private readonly seed: string) {}
+  private uint32() {
+    if (this.offset + 4 > this.pool.length) {
+      this.pool = createHash("sha256").update(this.seed + ":" + this.counter++).digest();
+      this.offset = 0;
+    }
+    const value = this.pool.readUInt32BE(this.offset);
+    this.offset += 4;
+    return value;
+  }
+  int(max: number) {
+    if (!Number.isSafeInteger(max) || max < 1) throw new Error("Invalid cast range");
+    const range = 0x100000000;
+    const limit = range - (range % max);
+    let value = this.uint32();
+    while (value >= limit) value = this.uint32();
+    return value % max;
+  }
 }
 
-export function selectCompleteHexagram(metrics: RepositoryMetrics): IChingReading {
-  const profile = createSignalProfile(metrics);
-  const pinned = metrics.complexityLevel === "high" && metrics.testRatio < 0.1 ? 29
-    : metrics.recentCommitCount >= 14 ? 1
-      : metrics.testRatio >= 0.18 && metrics.complexityLevel !== "high" ? 11
-        : metrics.recentCommitCount <= 3 ? 2
-          : undefined;
-  const chosen = pinned ? I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === pinned)! : pickFrom(I_CHING_HEXAGRAMS, profile, `${metrics.repositoryUrl}:hexagram`);
-  return { number: chosen.number, name: chosen.name, chineseName: chosen.chineseName, symbol: chosen.symbol, classicalText: chosen.classicalText, developerInterpretation: chosen.developerInterpretation, trigger: `${chosen.name} was selected from the full 64-hexagram system using the repository’s activity, complexity, collaboration, test, scale, and maintenance signals.` };
-}
-
-function lineInterpretation(line: number, value: IChingLineValue, primary: HexagramEntry, relating: HexagramEntry | undefined) {
-  const [positionName, domain] = linePositions[line - 1];
-  const changing = value === 6 || value === 9;
-  const polarity = value === 6 || value === 8 ? "yin" : "yang";
-  if (!changing) return `${positionName} is stable ${polarity}. In ${primary.name}, this holds the theme of ${domain}; let the existing pattern do its work before introducing a larger intervention.`;
-  const direction = value === 6 ? "receptivity becoming assertion" : "assertion becoming receptivity";
-  const destination = relating ? ` It contributes to the relating hexagram, ${relating.number}. ${relating.name}.` : "";
-  return `${positionName} is changing: ${polarity}, at an extreme, turns from ${direction}. In repository terms, ${domain} is the active hinge; make the transition intentionally rather than treating it as background noise.${destination}`;
-}
-
-export function castCompleteIChing(metrics: RepositoryMetrics, primaryReading = selectCompleteHexagram(metrics)): IChingReading {
-  const primary = I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === primaryReading.number)!;
-  const primaryPattern = patternForHexagram[primary.number];
-  const profile = createSignalProfile(metrics);
-  const movementChance = Math.round((0.08 + profile.change * 0.16 + profile.risk * 0.16 + profile.maintenance * 0.06) * 100);
-  const rawLines = primaryPattern.split("").map((bit, index) => {
-    const isYang = bit === "1";
-    const moves = hash(`${metrics.repositoryUrl}:${metrics.repositoryCreatedAt}:${primary.number}:line:${index + 1}`) % 100 < movementChance;
-    return (moves ? (isYang ? 9 : 6) : (isYang ? 7 : 8)) as IChingLineValue;
+export function castFromCode(metrics: RepositoryMetrics, nonceHex?: string): { tarot: TarotCard[]; iching: IChingReading; record: CastingRecord } {
+  const sourceFingerprint = metrics.architecture?.sourceFingerprint ??
+    createHash("sha256").update(JSON.stringify({ repositoryUrl: metrics.repositoryUrl, name: metrics.name, fileCount: metrics.fileCount })).digest("hex");
+  const nonce = nonceHex ?? randomBytes(32).toString("hex");
+  if (!/^[a-f0-9]{64}$/i.test(sourceFingerprint) || !/^[a-f0-9]{64}$/i.test(nonce)) throw new Error("Cast requires 32-byte hexadecimal fingerprint and nonce");
+  const seed = createHash("sha256").update("esotericcode-cast-v1:").update(sourceFingerprint).update(":").update(nonce.toLowerCase()).digest("hex");
+  const rng = new CodeCastRng(seed);
+  const available = TAROT_DECK.map((_, index) => index);
+  const tarotIndices: number[] = [];
+  const tarotReversed: boolean[] = [];
+  const positions = ["Foundation", "The Fracture", "The Passage"];
+  const tarot: TarotCard[] = positions.map(position => {
+    const chosenIndex = rng.int(available.length);
+    const index = available.splice(chosenIndex, 1)[0];
+    const entry = TAROT_DECK[index];
+    const reversed = rng.int(2) === 1;
+    tarotIndices.push(index);
+    tarotReversed.push(reversed);
+    return {
+      cardName: entry.cardName,
+      cardNumber: entry.cardNumber,
+      suit: entry.suit,
+      position,
+      metricTrigger: "Independently cast from inspected source fingerprint and a fresh cryptographic nonce; not chosen by the audit score.",
+      mysticalInterpretation: reversed ? entry.reversedInterpretation ?? entry.mysticalInterpretation : entry.mysticalInterpretation,
+      technicalActionable: reversed ? entry.reversedAction ?? entry.technicalActionable : entry.technicalActionable,
+      orientation: reversed ? "reversed" : "upright",
+      orientationEvidence: "Orientation independently cast; it is not a diagnosis of the software.",
+    };
   });
-  const changedPattern = rawLines.map(value => value === 6 ? "1" : value === 9 ? "0" : value === 7 ? "1" : "0").join("");
+  const ichingCoins: number[][] = [];
+  const rawLines: IChingLineValue[] = [];
+  for (let index = 0; index < 6; index++) {
+    // Classical three-coin line value: 2 (tails) or 3 (heads) per coin.
+    const coins = [rng.int(2) + 2, rng.int(2) + 2, rng.int(2) + 2];
+    ichingCoins.push(coins);
+    rawLines.push((coins[0] + coins[1] + coins[2]) as IChingLineValue);
+  }
+  const pattern = rawLines.map(line => line === 7 || line === 9 ? "1" : "0").join("");
+  const primaryNumber = KING_WEN_BY_PATTERN[pattern];
+  const primary = I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === primaryNumber);
+  if (!primary) throw new Error("Invalid hexagram pattern generated");
   const changingLineNumbers = rawLines.flatMap((value, index) => value === 6 || value === 9 ? [index + 1] : []);
-  const relatingNumber = KING_WEN_BY_PATTERN[changedPattern];
-  const relating = changingLineNumbers.length ? I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === relatingNumber) : undefined;
+  const changedPattern = rawLines.map(value => value === 6 || value === 7 ? "1" : "0").join("");
+  const relatingNumber = changingLineNumbers.length ? KING_WEN_BY_PATTERN[changedPattern] : undefined;
+  const relating = relatingNumber ? I_CHING_HEXAGRAMS.find(hexagram => hexagram.number === relatingNumber) : undefined;
   const lines: IChingLine[] = rawLines.map((value, index) => ({
     position: index + 1,
     positionName: linePositions[index][0],
@@ -324,14 +351,29 @@ export function castCompleteIChing(metrics: RepositoryMetrics, primaryReading = 
     interpretation: lineInterpretation(index + 1, value, primary, relating),
   }));
   const cast: IChingCast = {
-    method: "deterministic repository casting",
+    method: "code-fingerprint three-coin casting",
     mode: changingLineNumbers.length ? "changing" : "static",
     lines,
     changingLineNumbers,
     relatingHexagram: relating ? { number: relating.number, name: relating.name, chineseName: relating.chineseName, symbol: relating.symbol, developerInterpretation: relating.developerInterpretation } : undefined,
     transformationSummary: changingLineNumbers.length
-      ? `Lines ${changingLineNumbers.join(", ")} are active. ${primary.number}. ${primary.name} is changing toward ${relating!.number}. ${relating!.name}; read the primary as the present pattern and the relating hexagram as the direction shaped by the active lines.`
-      : `All six lines are stable. ${primary.number}. ${primary.name} is a static reading: its present pattern is the primary counsel, without a relating hexagram taking precedence.`,
+      ? `Lines ${changingLineNumbers.join(", ")} change ${primary.number}. ${primary.name} into ${relating!.number}. ${relating!.name}.`
+      : `All six lines are stable in ${primary.number}. ${primary.name}.`,
   };
-  return { ...primaryReading, cast, trigger: `${primaryReading.trigger} ${cast.transformationSummary}` };
+  const iching: IChingReading = {
+    number: primary.number, name: primary.name, chineseName: primary.chineseName,
+    symbol: primary.symbol, classicalText: primary.classicalText, developerInterpretation: primary.developerInterpretation,
+    trigger: "Independently cast from three virtual coins per line using the source fingerprint and a fresh cryptographic nonce.",
+    cast,
+  };
+  const record: CastingRecord = {
+    algorithm: "code-seeded-sha256-v1", sourceFingerprint, nonce: nonce.toLowerCase(), seed,
+    tarotIndices, tarotReversed, ichingCoins, primaryHexagram: primary.number, relatingHexagram: relating?.number,
+  };
+  return { tarot, iching, record };
 }
+
+// Compatibility entrypoints: each standalone call produces its own independent cast.
+export function drawCompleteTarot(metrics: RepositoryMetrics): TarotCard[] { return castFromCode(metrics).tarot; }
+export function selectCompleteHexagram(metrics: RepositoryMetrics): IChingReading { return castFromCode(metrics).iching; }
+export function castCompleteIChing(metrics: RepositoryMetrics): IChingReading { return castFromCode(metrics).iching; }
