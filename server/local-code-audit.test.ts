@@ -13,7 +13,7 @@ describe("offline code audit", () => {
     expect(findings.some(item => item.rule === "missing-test-script")).toBe(true);
   });
   it("keeps comment examples out of executable import and debug findings", () => {
-    const findings = auditRepository([{ path: "src/main.ts", bytes: 100, category: "source", content: "/* import \"./ghost\"; console.log(\"example\"); */\\n// import \"./missing\";\\nconst ok = true;" }]);
+    const findings = auditRepository([{ path: "src/main.ts", bytes: 100, category: "source", content: "/* import \"./ghost\"; console.log(\"example\"); */\n// import \"./missing\";\nconst ok = true;" }]);
     expect(findings.some(item => item.rule === "unresolved-relative-import" || item.rule === "debug-logging")).toBe(false);
   });
   it("traces cyclic module connections with source-line evidence", () => {
