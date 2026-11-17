@@ -20,7 +20,8 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
     const lines = entry.content.split(/\r?\n/);
     if (sourceExt.test(entry.path)) {
       const imports = new RegExp(importPattern.source, "g");
-      for (const match of entry.content.matchAll(imports)) {
+      let match: RegExpExecArray | null;
+      while ((match = imports.exec(entry.content)) !== null) {
         const target = match[1];
         if (!target.startsWith(".")) continue; // aliases and workspace imports need config resolution
         const base = path.normalize(path.join(path.dirname(entry.path), target));
