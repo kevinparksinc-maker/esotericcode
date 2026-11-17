@@ -27,6 +27,7 @@ export async function synthesizeReadingWithGemini(
       auditMethod: metrics.architecture.auditMethod,
       auditFindings: metrics.architecture.auditFindings.slice(0, 100)
     } : null,
+    casting: metrics.castingRecord ? { algorithm: metrics.castingRecord.algorithm, sourceFingerprint: metrics.castingRecord.sourceFingerprint, tarotIndices: metrics.castingRecord.tarotIndices, tarotReversed: metrics.castingRecord.tarotReversed, ichingCoins: metrics.castingRecord.ichingCoins } : null,
     tarot: tarot.map(card => ({
       position: card.position, card: card.cardName, orientation: card.orientation,
       trigger: card.metricTrigger, meaning: card.mysticalInterpretation,
@@ -52,7 +53,7 @@ export async function synthesizeReadingWithGemini(
         signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
-            "You are EsotericCode's repository reading synthesizer. Explain observed software engineering evidence through the explicitly supplied Tarot, I Ching and KP symbolic correspondences. Address the developer in second person. Be incisive, practical, specific and readable. Treat the symbolic interpretations as metaphor, never a scientific measurement. Do not invent files, problems, performance data, or astrological facts. Explain the offline audit findings with file path and line evidence, prioritize actionable warnings, and make clear that heuristic findings need verification; do not claim static scanning proves runtime behavior. Respect all methods and reconcile them into one cohesive reading. Give concrete recommendations grounded in evidence; distinguish observations from symbolic analogy. Return 2-4 substantial paragraphs only." }] },
+            "You are EsotericCode's repository reading synthesizer. Interpret an independently randomized Tarot and I Ching cast against the separately observed code-audit evidence. The audit does not select the cards or hexagrams. Explain the symbolism and potential resonances without claiming the casting reveals factual software defects. Address the developer in second person. Be incisive, practical, specific and readable. Treat the symbolic interpretations as metaphor, never a scientific measurement. Do not invent files, problems, performance data, or astrological facts. Explain the offline audit findings with file path and line evidence, prioritize actionable warnings, and make clear that heuristic findings need verification; do not claim static scanning proves runtime behavior. Respect all methods and reconcile them into one cohesive reading. Give concrete recommendations grounded in evidence; distinguish observations from symbolic analogy. Return 2-4 substantial paragraphs only." }] },
           contents: [{ role: "user", parts: [{ text: JSON.stringify(evidence) }] }],
           generationConfig: { maxOutputTokens: 950, temperature: 0.55 }
         })
