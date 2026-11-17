@@ -18,11 +18,11 @@ function drain() {
     const job = jobs.get(next.id);
     if (!job) continue;
     active++;
-    job.state = "running"; job.updatedAt = Date.now(); job.message = "Scanning source files and synthesizing architecture. Large archives can take a while.";
+    job.state = "running"; job.updatedAt = Date.now(); job.message = "Inspecting repository files locally (no Gemini calls).";
     void (async () => {
       try {
         const metrics = await extractUploadedZipMetrics(next.name, next.archive);
-        job.message = "Creating the Tarot, I Ching, and code interpretation.";
+        job.message = "Local scan complete. Gemini is interpreting the evidence for the final reading.";
         const divination = await enhanceDivinationNarrative(metrics, createDivination(metrics));
         job.result = { id: 0, createdAt: new Date(), isShared: false, shareSlug: "", metrics, tarot: divination.tarot, iching: divination.iching, narrative: divination.narrative };
         job.state = "completed"; job.message = "Reading complete.";
