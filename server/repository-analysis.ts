@@ -1,4 +1,5 @@
 import { createGunzip } from "node:zlib";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import * as tar from "tar-stream";
 import * as unzipper from "unzipper";
@@ -221,6 +222,17 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   if (!entries.some(entry => entry.category === "source" && entry.content !== undefined)) {
     throw new Error("No readable source code was found. A code reading requires source files, not GitHub metadata alone.");
   }
+  // Canonical digest of the bytes actually inspected; path order and file boundaries are explicit.
+  const digest = createHash("sha256");
+  for (const entry of entries.filter(e => e.content !== undefined).sort((a, b) => a.path.localeCompare(b.path))) {
+    digest.update(Buffer.from(entry.path, "utf8"));
+    digest.update(Buffer.from([0]));
+    const content = Buffer.from(entry.content!, "utf8");
+    digest.update(Buffer.from(String(content.byteLength) + ":", "utf8"));
+    digest.update(content);
+    digest.update(Buffer.from([0]));
+  }
+  const sourceFingerprint = digest.digest("hex");
   const moduleSummaries = inspectModules(entries);
   const auditFindings = auditRepository(entries);
   structured.coverage.contentBatches = 0; // No Gemini scanning calls.
@@ -235,7 +247,7 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     `Offline code audit: ${auditFindings.length} review findings, with path and line evidence.`,
     `These are static observations, not proof that code works or has specific defects.`,
   ].join(" ");
-  return { ...structured, moduleSummaries, auditFindings, auditMethod: "offline heuristic code audit", unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
+  return { ...structured, sourceFingerprint, moduleSummaries, auditFindings, auditMethod: "offline heuristic code audit", unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
 
 }
 
