@@ -292,7 +292,7 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   const maintenanceMarkers = entries.reduce((result, entry) => { const content = entry.content ?? ""; result.todo += (content.match(/\bTODO\b/gi) ?? []).length; result.fixme += (content.match(/\bFIXME\b/gi) ?? []).length; result.deprecated += (content.match(/\bdeprecated\b/gi) ?? []).length; return result; }, { todo: 0, fixme: 0, deprecated: 0 });
   const largestFiles = entries.slice().sort((a, b) => b.bytes - a.bytes).slice(0, 10).map(entry => ({ path: entry.path, bytes: entry.bytes, category: entry.category }));
   const recentlyTouchedFiles = await fetchSelectedFileRecency(input, largestFiles.map(file => file.path));
-  const structured = { analysisMode: "bounded full-tree architecture scan" as const, coverage: { repositoryFiles: input.repositoryFiles, inspectedTextFiles: entries.filter(entry => entry.content).length, excludedNoiseFiles, contentBatches: 0, unprocessedTextFiles: 0 }, categoryCounts: categories, topLevelModules, entryPoints, importEdges, dependencyCount: dependencies.length, dependencies: dependencies.slice(0, 40), testDirectories, maintenanceMarkers, largestFiles, recency: { recentCommitCount: input.recentCommitCount, mostRecentCommitAt: input.mostRecentCommitAt, recentlyTouchedFiles } };
+  const structured = { analysisMode: "bounded full-tree architecture scan" as const, coverage: { repositoryFiles: input.repositoryFiles, inspectedTextFiles: entries.filter(entry => entry.content).length, excludedNoiseFiles, contentBatches: 0, unprocessedTextFiles: 0, failedBatches: 0 }, categoryCounts: categories, topLevelModules, entryPoints, importEdges, dependencyCount: dependencies.length, dependencies: dependencies.slice(0, 40), testDirectories, maintenanceMarkers, largestFiles, recency: { recentCommitCount: input.recentCommitCount, mostRecentCommitAt: input.mostRecentCommitAt, recentlyTouchedFiles } };
   const allBatches = buildBatches(entries);
   if (!entries.some(entry => entry.category === "source" && entry.content !== undefined)) {
     throw new Error("No readable source code was found. A code reading requires source files, not GitHub metadata alone.");
@@ -322,7 +322,7 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     throw new Error("Gemini could not analyze any source-code batches after retries. No complete reading was generated.");
   }
   structured.coverage.contentBatches = moduleSummaries.length;
-  structured.coverage.unprocessedTextFiles = new Set(failedModules.map(module => module.split(" / ")[1]?.replace(/ \\[\\d+\\/\\d+\\]$/, "") ?? module)).size;
+  structured.coverage.unprocessedTextFiles = new Set(failedModules.map(module => module.split(" / ")[1]?.replace(/ \[\d+\/\d+\]$/, "") ?? module)).size;
   structured.coverage.failedBatches = failedModules.length;
   // Reduce the full set of source summaries hierarchically to keep synthesis within model context.
   let synthesisSummaries = moduleSummaries;
