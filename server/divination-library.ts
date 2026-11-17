@@ -274,7 +274,7 @@ function toDraw(entry: TarotEntry, position: string, metrics: RepositoryMetrics)
 // Source data supplies the fingerprint; fresh CSPRNG entropy supplies independent variation.
 class CodeCastRng {
   private counter = 0;
-  private pool = Buffer.alloc(0);
+  private pool: Buffer = Buffer.alloc(0);
   private offset = 0;
   constructor(private readonly seed: string) {}
   private uint32() {
@@ -294,6 +294,16 @@ class CodeCastRng {
     while (value >= limit) value = this.uint32();
     return value % max;
   }
+}
+
+function lineInterpretation(line: number, value: IChingLineValue, primary: HexagramEntry, relating: HexagramEntry | undefined) {
+  const [positionName, domain] = linePositions[line - 1];
+  const changing = value === 6 || value === 9;
+  const polarity = value === 6 || value === 8 ? "yin" : "yang";
+  if (!changing) return `${positionName} is stable ${polarity}. In ${primary.name}, the theme is ${domain}.`;
+  const direction = value === 6 ? "receptivity becoming assertion" : "assertion becoming receptivity";
+  const destination = relating ? ` The change leads toward ${relating.number}. ${relating.name}.` : "";
+  return `${positionName} changes from ${direction}; ${domain} becomes the active transition.${destination}`;
 }
 
 export function castFromCode(metrics: RepositoryMetrics, nonceHex?: string): { tarot: TarotCard[]; iching: IChingReading; record: CastingRecord } {
