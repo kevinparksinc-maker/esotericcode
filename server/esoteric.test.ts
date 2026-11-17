@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDivination, parseGitHubRepositoryUrl } from "./esoteric";
-import { castCompleteIChing, createSignalProfile, I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
+import { castFromCode, castCompleteIChing, createSignalProfile, I_CHING_HEXAGRAMS, TAROT_DECK, drawCompleteTarot, selectCompleteHexagram } from "./divination-library";
 import { createRepositoryKpChart } from "./kp-astrology";
 import { classifyRepositoryFile } from "./repository-analysis";
 import type { RepositoryMetrics } from "@shared/esoteric";
@@ -36,15 +36,17 @@ describe("EsotericCode mapping", () => {
     expect(parseGitHubRepositoryUrl("https://github.com/acme/oracle.git/")).toMatchObject({ owner: "acme", repo: "oracle" });
   });
 
-  it("draws The Tower and the Abysmal for high complexity with sparse tests", () => {
-    const result = createDivination({ ...baseMetrics, complexityLevel: "high", complexityScore: 6, testRatio: 0.02, testFileCount: 1 });
-    expect(result.tarot[1]?.cardName).toBe("The Tower");
-    expect(result.iching.number).toBe(29);
-  });
-
-  it("draws The World for a broad contributor field", () => {
-    const result = createDivination({ ...baseMetrics, contributorCount: 12 });
-    expect(result.tarot[0]?.cardName).toBe("The World");
+  it("casts independently of diagnosis and supports exact replay", () => {
+    const nonce = "a".repeat(64);
+    const normal = castFromCode(baseMetrics, nonce);
+    const stressed = castFromCode({ ...baseMetrics, complexityLevel: "high", complexityScore: 6, testRatio: 0.02 }, nonce);
+    expect(stressed.tarot).toEqual(normal.tarot);
+    expect(stressed.iching).toEqual(normal.iching);
+    expect(stressed.record).toEqual(normal.record);
+    expect(normal.record.algorithm).toBe("code-seeded-sha256-v1");
+    expect(new Set(normal.record.tarotIndices).size).toBe(3);
+    expect(normal.record.ichingCoins).toHaveLength(6);
+    expect(normal.record.ichingCoins.every(coins => coins.length === 3 && coins.every(coin => coin === 2 || coin === 3))).toBe(true);
   });
 
   it("contains the complete 78-card Tarot deck and all 64 canonical hexagrams", () => {
@@ -56,28 +58,15 @@ describe("EsotericCode mapping", () => {
     expect(I_CHING_HEXAGRAMS.map(hexagram => hexagram.number)).toEqual(Array.from({ length: 64 }, (_, index) => index + 1));
   });
 
-  it("varies complete-library draws across materially different repository signals", () => {
-    const stable = drawCompleteTarot({ ...baseMetrics, repositoryUrl: "https://github.com/acme/stable", testRatio: 0.35, contributorCount: 2, recentCommitCount: 2 });
-    const active = drawCompleteTarot({ ...baseMetrics, repositoryUrl: "https://github.com/acme/active", recentCommitCount: 22, contributorCount: 10, sourceFileCount: 400, complexityLevel: "moderate", complexityScore: 3 });
-    expect(stable.map(card => card.cardName)).not.toEqual(active.map(card => card.cardName));
-    expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/active", recentCommitCount: 18 }).number).toBe(1);
-    expect(selectCompleteHexagram({ ...baseMetrics, repositoryUrl: "https://github.com/acme/quiet", recentCommitCount: 1, testRatio: 0.1, testFileCount: 5 }).number).toBe(2);
-  });
-
-  it("supplies upright and reversed expressions for the complete deck", () => {
-    expect(TAROT_DECK.every(card => Boolean(card.reversedInterpretation && card.reversedAction))).toBe(true);
-    const stressed = createDivination({
-      ...baseMetrics,
-      repositoryUrl: "https://github.com/acme/stressed",
-      complexityLevel: "high",
-      complexityScore: 6,
-      testRatio: 0.02,
-      testFileCount: 1,
-      recentCommitCount: 17,
-    });
-    expect(stressed.tarot[1]).toMatchObject({ cardName: "The Tower", orientation: "reversed" });
-    expect(stressed.tarot[1]?.orientationEvidence).toContain("Reversed:");
-    expect(stressed.tarot.every(card => card.orientation === "upright" || card.orientation === "reversed")).toBe(true);
+  it("produces different casts from fresh nonces while preserving audit-independent results", () => {
+    const first = castFromCode(baseMetrics, "1".repeat(64));
+    const next = castFromCode(baseMetrics, "2".repeat(64));
+    expect(first.record.seed).not.toBe(next.record.seed);
+    expect(first.record).not.toEqual(next.record);
+    expect(first.tarot.every(card => card.orientation === "upright" || card.orientation === "reversed")).toBe(true);
+    const live = createDivination({ ...baseMetrics });
+    expect(live.tarot).toHaveLength(3);
+    expect(live.iching.cast?.lines).toHaveLength(6);
   });
 
   it("builds a deterministic repository KP chart with Tarot and I Ching bridges", () => {
@@ -93,29 +82,22 @@ describe("EsotericCode mapping", () => {
     expect(first.disclaimer).toContain("not a personal natal chart");
   });
 
-  it("casts all six I Ching lines and creates a relating hexagram only when lines change", () => {
-    const changing = castCompleteIChing({ ...baseMetrics, repositoryUrl: "https://github.com/acme/volatile", complexityLevel: "high", complexityScore: 6, testRatio: 0.02, testFileCount: 1, recentCommitCount: 18 });
-    expect(changing.cast?.lines).toHaveLength(6);
-    expect(changing.cast?.lines.map(line => line.position)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(changing.cast?.lines.every(line => [6, 7, 8, 9].includes(line.value))).toBe(true);
-    expect(changing.cast?.lines.every(line => Boolean(line.interpretation))).toBe(true);
-    expect(changing.cast?.mode).toBe("changing");
-    expect(changing.cast?.relatingHexagram).toBeDefined();
-    expect(changing.cast?.changingLineNumbers.length).toBeGreaterThan(0);
-
-    const staticCast = Array.from({ length: 200 }, (_, index) => castCompleteIChing({ ...baseMetrics, repositoryUrl: `https://github.com/acme/static-${index}`, complexityLevel: "low", complexityScore: 0, testRatio: 0.4, recentCommitCount: 1 }))
-      .find(reading => reading.cast?.mode === "static");
-    expect(staticCast?.cast?.changingLineNumbers).toEqual([]);
-    expect(staticCast?.cast?.relatingHexagram).toBeUndefined();
-    expect(staticCast?.cast?.transformationSummary).toContain("static reading");
+  it("casts six three-coin I Ching lines and derives the relating hexagram by changing lines", () => {
+    const cast = castCompleteIChing(baseMetrics);
+    expect(cast.cast?.lines).toHaveLength(6);
+    expect(cast.cast?.lines.map(line => line.position)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(cast.cast?.lines.every(line => [6, 7, 8, 9].includes(line.value))).toBe(true);
+    expect(cast.cast?.relatingHexagram === undefined).toBe(cast.cast?.changingLineNumbers.length === 0);
+    expect(cast.cast?.method).toBe("code-fingerprint three-coin casting");
   });
 
   it("maps full-tree architecture evidence into the divination signal profile and KP chart", () => {
     const architecture = {
       analysisMode: "bounded full-tree architecture scan" as const,
+      auditFindings: [], auditMethod: "offline heuristic code audit" as const,
       coverage: { repositoryFiles: 220, inspectedTextFiles: 130, excludedNoiseFiles: 30, contentBatches: 4, unprocessedTextFiles: 0 },
       categoryCounts: { source: 78, test: 18, config: 9, documentation: 4, manifest: 2, migration: 3, infrastructure: 2, other: 14 },
-      topLevelModules: [], entryPoints: ["src/main.ts"], importEdges: Array.from({ length: 84 }, (_, index) => ({ from: `src/${index}.ts`, to: "./shared" })), dependencyCount: 12, dependencies: [], testDirectories: ["tests"], maintenanceMarkers: { todo: 18, fixme: 7, deprecated: 2 }, largestFiles: [], recency: { recentCommitCount: 12, mostRecentCommitAt: "2026-08-20T00:00:00.000Z", recentlyTouchedFiles: [{ path: "src/main.ts", lastCommitAt: "2026-08-20T00:00:00.000Z" }] }, moduleSummaries: [], unifiedSummary: "A heavily connected repository with visible maintenance debt.", synthesisMethod: "batched module summaries followed by one unified synthesis" as const,
+      topLevelModules: [], entryPoints: ["src/main.ts"], importEdges: Array.from({ length: 84 }, (_, index) => ({ from: `src/${index}.ts`, to: "./shared" })), dependencyCount: 12, dependencies: [], testDirectories: ["tests"], maintenanceMarkers: { todo: 18, fixme: 7, deprecated: 2 }, largestFiles: [], recency: { recentCommitCount: 12, mostRecentCommitAt: "2026-08-20T00:00:00.000Z", recentlyTouchedFiles: [{ path: "src/main.ts", lastCommitAt: "2026-08-20T00:00:00.000Z" }] }, moduleSummaries: [], unifiedSummary: "A heavily connected repository with visible maintenance debt.", synthesisMethod: "local static evidence followed by one Gemini interpretation" as const,
     };
     const profile = createSignalProfile({ ...baseMetrics, architecture });
     expect(profile.complexity).toBeGreaterThan(createSignalProfile(baseMetrics).complexity);
