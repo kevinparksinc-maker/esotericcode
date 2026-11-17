@@ -4,7 +4,7 @@ export type KpPlanet = "Sun" | "Moon" | "Mars" | "Mercury" | "Jupiter" | "Venus"
 export type RepositoryFileCategory = "source" | "test" | "config" | "documentation" | "manifest" | "migration" | "infrastructure" | "other";
 export type RepositoryArchitecture = {
   analysisMode: "bounded full-tree architecture scan";
-  coverage: { repositoryFiles: number; inspectedTextFiles: number; excludedNoiseFiles: number; contentBatches: number; unprocessedTextFiles: number };
+  coverage: { repositoryFiles: number; inspectedTextFiles: number; excludedNoiseFiles: number; contentBatches: number; unprocessedTextFiles: number; failedBatches?: number };
   categoryCounts: Record<RepositoryFileCategory, number>;
   topLevelModules: Array<{ path: string; files: number; categories: RepositoryFileCategory[] }>;
   entryPoints: string[];
