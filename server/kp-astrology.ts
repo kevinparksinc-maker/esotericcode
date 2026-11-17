@@ -51,9 +51,9 @@ function primaryPlanet(metrics: RepositoryMetrics): KpPlanet {
   if (metrics.architecture && metrics.architecture.maintenanceMarkers.fixme + metrics.architecture.maintenanceMarkers.deprecated >= 8) return "Saturn";
   if (metrics.complexityLevel === "high") return metrics.testRatio < 0.1 ? "Rahu" : "Saturn";
   if (metrics.contributorCount >= 8) return "Jupiter";
-  if (metrics.recentCommitCount >= 14) return "Mars";
+  if (metrics.historyAvailable !== false && metrics.recentCommitCount >= 14) return "Mars";
   if (metrics.testRatio >= 0.18) return "Venus";
-  if (metrics.recentCommitCount <= 3) return "Moon";
+  if (metrics.historyAvailable !== false && metrics.recentCommitCount <= 3) return "Moon";
   return "Mercury";
 }
 
@@ -62,20 +62,22 @@ function activeHouse(metrics: RepositoryMetrics): KpHouseEmphasis {
   if (metrics.complexityLevel === "high") return HOUSES[7];
   if (metrics.testRatio < 0.08) return HOUSES[5];
   if (metrics.contributorCount >= 8) return HOUSES[10];
-  if (metrics.recentCommitCount >= 14) return HOUSES[9];
-  if (metrics.recentCommitCount <= 3) return HOUSES[3];
+  if (metrics.historyAvailable !== false && metrics.recentCommitCount >= 14) return HOUSES[9];
+  if (metrics.historyAvailable !== false && metrics.recentCommitCount <= 3) return HOUSES[3];
   return HOUSES[0];
 }
 
 function byPlanet(planet: KpPlanet) { return KP_PLANETS.find(entry => entry.planet === planet)!; }
 
 export function createRepositoryKpChart(metrics: RepositoryMetrics): KpAstrologyChart {
-  const seed = timestampSeed(metrics.repositoryCreatedAt);
+  // ZIP archives do not carry reliable GitHub creation metadata.
+  const fingerprint = metrics.architecture?.sourceFingerprint;
+  const seed = metrics.historyAvailable === false && fingerprint ? parseInt(fingerprint.slice(0, 10), 16) : timestampSeed(metrics.repositoryCreatedAt);
   const nakshatraIndex = seed % NAKSHATRAS.length;
   const nakshatra = NAKSHATRAS[nakshatraIndex];
   const primary = primaryPlanet(metrics);
   const starLord = byPlanet(nakshatra.ruler);
-  const subLord = byPlanet(KP_PLANETS[(seed + metrics.complexityScore + metrics.contributorCount + metrics.recentCommitCount) % KP_PLANETS.length].planet);
+  const subLord = byPlanet(KP_PLANETS[(seed + metrics.complexityScore + metrics.contributorCount + (metrics.historyAvailable === false ? 0 : metrics.recentCommitCount)) % KP_PLANETS.length].planet);
   const significators = Array.from(new Map([primary, starLord.planet, subLord.planet].map(planet => [planet, byPlanet(planet)])).values());
   const house = activeHouse(metrics);
   const created = new Date(metrics.repositoryCreatedAt);
@@ -84,7 +86,7 @@ export function createRepositoryKpChart(metrics: RepositoryMetrics): KpAstrology
   const ichingBridge = Array.from(new Map(significators.flatMap(significator => significator.hexagramResonances).map(hexagram => [hexagram.number, hexagram])).values());
   return {
     framework: "Repository symbolic chart",
-    repositoryBirth: { createdAt: metrics.repositoryCreatedAt, ageDays, source: "GitHub repository creation timestamp" },
+    repositoryBirth: { createdAt: metrics.historyAvailable === false ? "" : metrics.repositoryCreatedAt, ageDays: metrics.historyAvailable === false ? 0 : ageDays, source: metrics.historyAvailable === false ? "Source-content SHA-256 fingerprint (ZIP has no verified creation date)" : "GitHub repository creation timestamp" },
     activeHouse: house,
     nakshatra: { index: nakshatraIndex + 1, ...nakshatra },
     starLord,
@@ -93,6 +95,6 @@ export function createRepositoryKpChart(metrics: RepositoryMetrics): KpAstrology
     tarotBridge,
     ichingBridge,
     synthesis: `${house.name} is the active repository house, emphasizing ${house.engineeringDomain}. ${starLord.planet} acts as the star lord through ${nakshatra.name}, a theme of ${nakshatra.theme}; ${subLord.planet} refines this as the sub-lord. Together they connect the current system state to ${tarotBridge.slice(0, 2).join(" and ")} in Tarot and ${ichingBridge.slice(0, 2).map(hexagram => `${hexagram.number}. ${hexagram.name}`).join(" / ")} in the I Ching.`,
-    disclaimer: "This is a KP-inspired symbolic repository chart derived from GitHub timestamps and code signals, not a personal natal chart or a predictive astrology calculation.",
+    disclaimer: metrics.historyAvailable === false ? "This is a KP-inspired symbolic repository chart indexed by the scanned code fingerprint. ZIP creation date and commit activity are unknown, not zero. It is not an astronomical or predictive calculation." : "This is a KP-inspired symbolic repository chart derived from GitHub timestamps and code signals, not a personal natal chart or a predictive astrology calculation.",
   };
 }
