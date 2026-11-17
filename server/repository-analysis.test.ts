@@ -1,6 +1,6 @@
 import { createGzip } from "node:zlib";
 import * as tar from "tar-stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as yazl from "yazl";
 import { parseRepositoryArchive, parseUploadedZip } from "./repository-analysis";
 import { extractUploadedZipMetrics } from "./esoteric";
@@ -69,12 +69,28 @@ describe("repository architecture ingestion", () => {
     await expect(parseUploadedZip(Buffer.from("this is not a ZIP archive"))).rejects.toThrow();
   });
 
-  it("runs a real ZIP archive through the shared architecture, metrics, and KP-ready analysis path", async () => {
-    const metrics = await extractUploadedZipMetrics("fixture.zip", await buildFixtureZip());
-    expect(metrics.source).toEqual({ type: "zip", label: "Uploaded ZIP archive", originalFileName: "fixture.zip" });
-    expect(metrics.architecture?.coverage.inspectedTextFiles).toBeGreaterThan(0);
-    expect(metrics.architecture?.categoryCounts.source).toBe(1);
-    expect(metrics.architecture?.categoryCounts.documentation).toBe(1);
-    expect(metrics.kpChart?.framework).toBe("Repository symbolic chart");
+  it("runs a real ZIP through the complete architecture, metrics, and KP path with a deterministic Gemini mock", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "local-test-key");
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, options: RequestInit) => {
+      const request = JSON.parse(String(options.body));
+      const isModule = Boolean(request.generationConfig.responseJsonSchema.properties.responsibilities);
+      const text = JSON.stringify(isModule
+        ? { summary: "Fixture module analyzed", responsibilities: ["Expose fixture code"], risks: [] }
+        : { summary: "Fixture architecture synthesized" });
+      return { ok: true, json: async () => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text }] } }] }) };
+    }));
+    try {
+      const metrics = await extractUploadedZipMetrics("fixture.zip", await buildFixtureZip());
+      expect(metrics.source).toEqual({ type: "zip", label: "Uploaded ZIP archive", originalFileName: "fixture.zip" });
+      expect(metrics.architecture?.coverage.inspectedTextFiles).toBeGreaterThan(0);
+      expect(metrics.architecture?.coverage.failedBatches).toBe(0);
+      expect(metrics.architecture?.categoryCounts.source).toBe(1);
+      expect(metrics.architecture?.categoryCounts.documentation).toBe(1);
+      expect(metrics.architecture?.unifiedSummary).toBe("Fixture architecture synthesized");
+      expect(metrics.kpChart?.framework).toBe("Repository symbolic chart");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   }, 90_000);
 });
