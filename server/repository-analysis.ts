@@ -213,7 +213,8 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   const dependencies = parseDependencies(entries);
   const topLevelModules = Array.from(new Map(entries.map(entry => [rootModule(entry.path), entries.filter(other => rootModule(other.path) === rootModule(entry.path))])).entries()).map(([path, files]) => ({ path, files: files.length, categories: Array.from(new Set(files.map(file => file.category))) })).sort((a, b) => b.files - a.files).slice(0, 16);
   const entryPoints = entries.filter(entry => /(^|\/)(main|index|app|server|cli)\.(ts|tsx|js|jsx|py|go|rs)$/i.test(entry.path) || basename(entry.path) === "package.json").map(entry => entry.path).slice(0, 20);
-  const importEdges = entries.flatMap(entry => entry.content ? extractImports(entry.path, entry.content) : []).slice(0, 120);
+  const allImportEdges = entries.flatMap(entry => entry.content ? extractImports(entry.path, entry.content) : []);
+  const importEdges = allImportEdges.slice(0, 120);
   const testDirectories = Array.from(new Set(entries.filter(entry => entry.category === "test").map(entry => entry.path.split("/").slice(0, -1).join("/") || "root"))).slice(0, 24);
   const maintenanceMarkers = entries.reduce((result, entry) => { const content = entry.content ?? ""; result.todo += (content.match(/\bTODO\b/gi) ?? []).length; result.fixme += (content.match(/\bFIXME\b/gi) ?? []).length; result.deprecated += (content.match(/\bdeprecated\b/gi) ?? []).length; return result; }, { todo: 0, fixme: 0, deprecated: 0 });
   const largestFiles = entries.slice().sort((a, b) => b.bytes - a.bytes).slice(0, 10).map(entry => ({ path: entry.path, bytes: entry.bytes, category: entry.category }));
@@ -235,19 +236,20 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   const sourceFingerprint = digest.digest("hex");
   const moduleSummaries = inspectModules(entries);
   const auditFindings = auditRepository(entries);
+  const auditTruncated = auditFindings.length >= 1000;
   structured.coverage.contentBatches = 0; // No Gemini scanning calls.
   structured.coverage.unprocessedTextFiles = entries.filter(entry => entry.category === "source" && entry.content === undefined).length;
   structured.coverage.failedBatches = 0;
   const unifiedSummary = [
     `Local static architecture scan of ${structured.coverage.repositoryFiles} files; ${structured.coverage.inspectedTextFiles} readable text files inspected.`,
     `${categories.source} source, ${categories.test} tests, ${categories.config} configuration, ${categories.documentation} documentation files.`,
-    `${importEdges.length} recorded internal import edges (first 120), ${dependencies.length} manifest dependencies.`,
+    `${allImportEdges.length} internal import edges recorded, showing the first ${importEdges.length}; ${dependencies.length} manifest dependencies.`,
     `Entry points: ${entryPoints.join(", ") || "none detected"}.`,
     `Maintenance markers: ${maintenanceMarkers.todo} TODO, ${maintenanceMarkers.fixme} FIXME, ${maintenanceMarkers.deprecated} deprecated.`,
-    `Offline code audit: ${auditFindings.length} review findings, with path and line evidence.`,
+    `Offline code audit: ${auditFindings.length} review findings, with path and line evidence${auditTruncated ? "; result limit reached and further findings may exist" : ""}.`,
     `These are static observations, not proof that code works or has specific defects.`,
   ].join(" ");
-  return { ...structured, sourceFingerprint, moduleSummaries, auditFindings, auditMethod: "offline heuristic code audit", unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
+  return { ...structured, sourceFingerprint, moduleSummaries, auditFindings, auditCount: auditFindings.length, auditTruncated, auditMethod: "offline heuristic code audit", unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
 
 }
 
