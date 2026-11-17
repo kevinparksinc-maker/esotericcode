@@ -2,12 +2,14 @@ export type ComplexityLevel = "low" | "moderate" | "high";
 export type TarotOrientation = "upright" | "reversed";
 export type KpPlanet = "Sun" | "Moon" | "Mars" | "Mercury" | "Jupiter" | "Venus" | "Saturn" | "Rahu" | "Ketu";
 export type RepositoryFileCategory = "source" | "test" | "config" | "documentation" | "manifest" | "migration" | "infrastructure" | "other";
-export type RepositoryAuditFinding = { rule: string; severity: "warning" | "info"; file: string; line: number; evidence: string; recommendation: string };
+export type RepositoryAuditFinding = { rule: string; severity: "warning" | "info"; file: string; line: number; evidence: string; recommendation: string; status?: "requires-verification" | "confirmed" | "corrected" | "verified"; relatedFiles?: string[] };
 export type CastingRecord = { algorithm: "code-seeded-sha256-v1"; sourceFingerprint: string; nonce: string; seed: string; tarotIndices: number[]; tarotReversed: boolean[]; ichingCoins: number[][]; primaryHexagram: number; relatingHexagram?: number };
 export type RepositoryArchitecture = {
   sourceFingerprint?: string;
   auditFindings: RepositoryAuditFinding[];
   auditMethod: "offline heuristic code audit";
+  auditTruncated?: boolean;
+  auditCount?: number;
   analysisMode: "bounded full-tree architecture scan";
   coverage: { repositoryFiles: number; inspectedTextFiles: number; excludedNoiseFiles: number; contentBatches: number; unprocessedTextFiles: number; failedBatches?: number };
   categoryCounts: Record<RepositoryFileCategory, number>;
@@ -93,6 +95,7 @@ export type RepositoryMetrics = {
   complexityScore: number;
   complexitySignals: string[];
   castingRecord?: CastingRecord;
+  historyAvailable?: boolean;
   repositoryCreatedAt: string;
   fetchedAt: string;
   kpChart?: KpAstrologyChart;
