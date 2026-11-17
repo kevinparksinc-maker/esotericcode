@@ -17,7 +17,7 @@ export type RepositoryArchitecture = {
   recency: { recentCommitCount: number; mostRecentCommitAt?: string; recentlyTouchedFiles: Array<{ path: string; lastCommitAt?: string }> };
   moduleSummaries: Array<{ module: string; summary: string; responsibilities: string[]; risks: string[] }>;
   unifiedSummary: string;
-  synthesisMethod: "batched module summaries followed by one unified synthesis";
+  synthesisMethod: "local static evidence followed by one Gemini interpretation";
 };
 export type IChingLineValue = 6 | 7 | 8 | 9;
 export type IChingLine = {
