@@ -11,6 +11,7 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
   const findings: RepositoryAuditFinding[] = [];
   const known = new Set(entries.map(e => e.path.replace(/\\/g, "/")));
   const incoming = new Map<string, Set<string>>();
+  const outgoing = new Map<string, Array<{ to: string; line: number }>>();
   function add(rule: string, severity: RepositoryAuditFinding["severity"], file: string, line: number, evidence: string, recommendation: string) {
     if (findings.length >= 1000) return;
     findings.push({ rule, severity, file, line, evidence: evidence.slice(0, 180), recommendation, status: "requires-verification" });
@@ -31,9 +32,11 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
         const base = path.normalize(path.join(path.dirname(entry.path), target));
         if (!incoming.has(base)) incoming.set(base, new Set());
         incoming.get(base)!.add(entry.path);
-        const resolved = [base, ...candidates.map(ext => base + ext)].some(candidate => known.has(candidate));
-        if (!resolved) {
-          const line = uncommented.slice(0, match.index).split("\n").length;
+        const resolved = [base, ...candidates.map(ext => base + ext)].find(candidate => known.has(candidate));
+        const line = uncommented.slice(0, match.index).split("\n").length;
+        if (resolved) {
+          outgoing.set(entry.path, [...(outgoing.get(entry.path) ?? []), { to: resolved, line }]);
+        } else {
           add("unresolved-relative-import", "warning", entry.path, line, target, "Verify the relative path and whether the target is present in the archive.");
         }
       }
@@ -42,7 +45,7 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
       const text = lines[index];
       const original = originalLines[index] ?? text;
       const line = index + 1;
-      if (/\b(?:TODO|FIXME)\b/i.test(text) && !/https?:\/\//.test(text)) {
+      if (/\b(?:TODO|FIXME)\b/i.test(original) && !/https?:\/\//.test(original)) {
         add("unfinished-work-marker", "info", entry.path, line, original.trim(), "Review the marked work; it is not automatically a defect.");
       }
       if (/\b(?:eval\s*\(|new\s+Function\s*\()/.test(text) && !/\/\/|\/\*/.test(text.trim().slice(0, 3))) {
@@ -64,6 +67,31 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
       }
     }
   }
+  // Trace static relative import cycles across files. Cycles are architectural review
+  // findings; they do not, by themselves, establish a runtime failure.
+  const visited = new Set<string>();
+  const active = new Set<string>();
+  const stack: string[] = [];
+  const reported = new Set<string>();
+  function walk(file: string) {
+    if (stack.length > 1000) return;
+    visited.add(file);
+    active.add(file);
+    stack.push(file);
+    for (const edge of outgoing.get(file) ?? []) {
+      if (active.has(edge.to)) {
+        const cycle = [...stack.slice(stack.indexOf(edge.to)), edge.to];
+        const signature = cycle.slice(0, -1).slice().sort().join("|");
+        if (!reported.has(signature)) {
+          reported.add(signature);
+          add("circular-relative-dependency", "warning", file, edge.line, cycle.join(" -> "), "Trace module initialization and import-time side effects; break the cycle if it causes unsafe initialization or coupled ownership.");
+        }
+      } else if (!visited.has(edge.to)) walk(edge.to);
+    }
+    stack.pop();
+    active.delete(file);
+  }
+  for (const file of outgoing.keys()) if (!visited.has(file)) walk(file);
   for (const finding of findings) {
     const base = finding.file.replace(/\.[^/.]+$/, "");
     finding.relatedFiles = Array.from(incoming.get(base) ?? []).slice(0, 12);
