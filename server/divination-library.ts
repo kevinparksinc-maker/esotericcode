@@ -209,20 +209,23 @@ const linePositions = [
 
 export function createSignalProfile(metrics: RepositoryMetrics): Profile {
   const architecture = metrics.architecture;
+  const commitSignal = metrics.historyAvailable === false ? 0.5 : clamp(metrics.recentCommitCount / 24);
+  const commitChange = metrics.historyAvailable === false ? 0.5 : clamp(metrics.recentCommitCount / 20);
+  const maintenanceRecency = metrics.historyAvailable === false ? 0.5 : (1 - metrics.recentCommitCount / 30);
   const architectureComplexity = architecture && architecture.importEdges.length > 70 ? 0.16 : 0;
   const maintenancePressure = architecture ? Math.min(0.35, (architecture.maintenanceMarkers.todo + architecture.maintenanceMarkers.fixme + architecture.maintenanceMarkers.deprecated) / 45) : 0;
   const testCoverage = architecture ? Math.min(0.18, architecture.categoryCounts.test / Math.max(1, architecture.coverage.inspectedTextFiles)) : 0;
   return {
-  activity: clamp(metrics.recentCommitCount / 24),
-    growth: clamp((metrics.recentCommitCount / 26 + metrics.contributorCount / 18 + metrics.sourceFileCount / 600) / 3),
-    change: clamp((metrics.recentCommitCount / 20 + metrics.complexityScore / 9) / 2),
+  activity: commitSignal,
+    growth: clamp(((metrics.historyAvailable === false ? 0.5 : metrics.recentCommitCount / 26) + (metrics.historyAvailable === false ? 0.5 : metrics.contributorCount / 18) + metrics.sourceFileCount / 600) / 3),
+    change: clamp((commitChange + metrics.complexityScore / 9) / 2),
     stability: clamp((metrics.testRatio * 1.4 + testCoverage + (metrics.complexityLevel === "low" ? 0.55 : metrics.complexityLevel === "moderate" ? 0.3 : 0.05)) / 2),
     testing: clamp(metrics.testRatio * 2.2 + testCoverage),
     complexity: clamp(metrics.complexityScore / 7 + architectureComplexity),
     risk: clamp((metrics.complexityScore / 7 + architectureComplexity + maintenancePressure + (metrics.testRatio < 0.08 ? 0.65 : 0.08)) / 2),
-    collaboration: clamp(metrics.contributorCount / 16),
+    collaboration: metrics.historyAvailable === false ? 0.5 : clamp(metrics.contributorCount / 16),
     scale: clamp((metrics.sourceFileCount / 500 + metrics.directoryDepth / 10) / 2),
-    maintenance: clamp((1 - metrics.recentCommitCount / 30 + maintenancePressure + (metrics.testRatio < 0.12 ? 0.3 : 0.1)) / 2),
+    maintenance: clamp((maintenanceRecency + maintenancePressure + (metrics.testRatio < 0.12 ? 0.3 : 0.1)) / 2),
     craft: clamp((metrics.testRatio + (metrics.averageSourceFileSize < 9000 ? 0.6 : 0.2) + (metrics.directoryDepth < 6 ? 0.25 : 0)) / 2),
   };
 }
