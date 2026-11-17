@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import * as tar from "tar-stream";
 import * as unzipper from "unzipper";
 import type { RepositoryArchitecture, RepositoryFileCategory } from "@shared/esoteric";
+import { auditRepository } from "./local-code-audit";
 
 type ArchiveEntry = { path: string; bytes: number; content?: string; category: RepositoryFileCategory };
 type AnalysisInput = { owner?: string; repo?: string; branch?: string; accessToken?: string; repositoryFiles: number; recentCommitCount: number; mostRecentCommitAt?: string };
@@ -221,6 +222,7 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     throw new Error("No readable source code was found. A code reading requires source files, not GitHub metadata alone.");
   }
   const moduleSummaries = inspectModules(entries);
+  const auditFindings = auditRepository(entries);
   structured.coverage.contentBatches = 0; // No Gemini scanning calls.
   structured.coverage.unprocessedTextFiles = entries.filter(entry => entry.category === "source" && entry.content === undefined).length;
   structured.coverage.failedBatches = 0;
@@ -230,9 +232,10 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     `${importEdges.length} recorded internal import edges (first 120), ${dependencies.length} manifest dependencies.`,
     `Entry points: ${entryPoints.join(", ") || "none detected"}.`,
     `Maintenance markers: ${maintenanceMarkers.todo} TODO, ${maintenanceMarkers.fixme} FIXME, ${maintenanceMarkers.deprecated} deprecated.`,
+    `Offline code audit: ${auditFindings.length} review findings, with path and line evidence.`,
     `These are static observations, not proof that code works or has specific defects.`,
   ].join(" ");
-  return { ...structured, moduleSummaries, unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
+  return { ...structured, moduleSummaries, auditFindings, auditMethod: "offline heuristic code audit", unifiedSummary, synthesisMethod: "local static evidence followed by one Gemini interpretation" };
 
 }
 
