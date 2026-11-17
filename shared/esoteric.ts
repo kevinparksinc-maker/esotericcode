@@ -2,7 +2,10 @@ export type ComplexityLevel = "low" | "moderate" | "high";
 export type TarotOrientation = "upright" | "reversed";
 export type KpPlanet = "Sun" | "Moon" | "Mars" | "Mercury" | "Jupiter" | "Venus" | "Saturn" | "Rahu" | "Ketu";
 export type RepositoryFileCategory = "source" | "test" | "config" | "documentation" | "manifest" | "migration" | "infrastructure" | "other";
+export type RepositoryAuditFinding = { rule: string; severity: "warning" | "info"; file: string; line: number; evidence: string; recommendation: string };
 export type RepositoryArchitecture = {
+  auditFindings: RepositoryAuditFinding[];
+  auditMethod: "offline heuristic code audit";
   analysisMode: "bounded full-tree architecture scan";
   coverage: { repositoryFiles: number; inspectedTextFiles: number; excludedNoiseFiles: number; contentBatches: number; unprocessedTextFiles: number; failedBatches?: number };
   categoryCounts: Record<RepositoryFileCategory, number>;
