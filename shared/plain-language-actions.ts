@@ -28,7 +28,9 @@ export function buildPlainLanguageActions(metrics: RepositoryMetrics): PlainLang
   const biggestSourceFile = architecture?.largestFiles.find(file => file.category === "source")?.path ?? "the largest source file";
   const busyModule = architecture?.topLevelModules.slice().sort((first, second) => second.files - first.files)[0]?.path ?? "the busiest feature folder";
 
-  const first: PlainLanguageAction = thinTests
+  const first: PlainLanguageAction = (architecture?.auditFindings.length ?? 0) > 0
+    ? { step: "Start here", title: "Investigate every recorded code-audit finding", explanation: `The code audit recorded ${architecture!.auditFindings.length} findings that need a verified disposition. None should be silently dismissed.`, action: "Start with the first reported file and line, inspect the surrounding code, repair any confirmed defect, run a relevant test, and record what was verified.", example: `${architecture!.auditFindings[0].file}:${architecture!.auditFindings[0].line} — ${architecture!.auditFindings[0].rule}. Inspect this specific location before expanding features.` }
+    : thinTests
     ? {
         step: "Start here",
         title: "Protect one important user path with tests",
@@ -76,7 +78,7 @@ export function buildPlainLanguageActions(metrics: RepositoryMetrics): PlainLang
           action: "Create a short list of the three notes with the biggest user impact, assign each a next action, and close or delete the rest.",
           example: "Turn “fix error handling” into “show a retry button when the saved request fails,” then put it in the next small work batch.",
         }
-      : metrics.recentCommitCount <= 3
+      : metrics.historyAvailable !== false && metrics.recentCommitCount <= 3
         ? {
             step: "Do this next",
             title: "Use the quiet period for a small cleanup",
@@ -92,7 +94,9 @@ export function buildPlainLanguageActions(metrics: RepositoryMetrics): PlainLang
             example: "Write “add validation,” “test validation,” and “show a friendly error” as three separate changes instead of one large task.",
           };
 
-  const third: PlainLanguageAction = metrics.contributorCount <= 1
+  const third: PlainLanguageAction = metrics.historyAvailable === false
+    ? { step: "Keep it healthy", title: "Verify the repository history", explanation: "A ZIP contains source files but does not establish who contributed or how many commits occurred.", action: "Connect the original GitHub repository for activity and contributor information, or retain these fields as unknown.", example: "Use a GitHub repository URL with permission to inspect its history; do not use the ZIP upload date as a repository creation date." }
+    : metrics.contributorCount <= 1
     ? {
         step: "Keep it healthy",
         title: "Make it easier for future you to return",
