@@ -16,6 +16,14 @@ describe("offline code audit", () => {
     const findings = auditRepository([{ path: "src/main.ts", bytes: 100, category: "source", content: "/* import \"./ghost\"; console.log(\"example\"); */\\n// import \"./missing\";\\nconst ok = true;" }]);
     expect(findings.some(item => item.rule === "unresolved-relative-import" || item.rule === "debug-logging")).toBe(false);
   });
+  it("traces cyclic module connections with source-line evidence", () => {
+    const findings = auditRepository([
+      { path: "src/a.ts", bytes: 40, category: "source", content: 'import "./b";' },
+      { path: "src/b.ts", bytes: 40, category: "source", content: 'import "./a";' },
+    ]);
+    expect(findings.some(finding => finding.rule === "circular-relative-dependency" && finding.file === "src/b.ts" && finding.line === 1)).toBe(true);
+    expect(findings.every(finding => finding.status === "requires-verification")).toBe(true);
+  });
   it("resolves existing relative imports to index or extension files", () => {
     const findings = auditRepository([
       { path: "src/main.ts", bytes: 32, category: "source", content: 'import "./real"; import "./utils";' },
