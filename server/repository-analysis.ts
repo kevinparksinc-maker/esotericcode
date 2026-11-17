@@ -11,7 +11,10 @@ const ARCHIVE_COMPRESSED_LIMIT = 24 * 1024 * 1024;
 const TEXT_FILE_LIMIT = 96 * 1024;
 // Explicit safety ceiling: fail visibly instead of silently claiming complete AI coverage.
 const MAX_LLM_BATCHES = 1000;
-const MAX_BATCH_CHARS = 18_000;
+const MAX_BATCH_CHARS = 12_000;
+const MAX_GEMINI_RETRIES = 4;
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+const GEMINI_CONCURRENCY = 2;
 export const ZIP_UPLOAD_LIMIT = 12 * 1024 * 1024;
 const ZIP_ENTRY_LIMIT = 1000;
 const ZIP_UNCOMPRESSED_LIMIT = 48 * 1024 * 1024;
@@ -177,20 +180,25 @@ async function requestGeminiSummary(instruction: string, input: string, schema: 
     generationConfig: { maxOutputTokens, responseMimeType: "application/json", responseJsonSchema: schema },
   });
   for (let attempt = 0; ; attempt++) {
-    const signal = AbortSignal.timeout(45_000);
+    const signal = AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS);
     const response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       signal,
       body,
-    }).catch(() => {
-      throw new Error(signal.aborted ? "Gemini request timed out" : "Gemini network request failed");
+    }).catch(async () => {
+      if (attempt < MAX_GEMINI_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, Math.min(1500 * 2 ** attempt, 15_000)));
+        return null;
+      }
+      throw new Error(signal.aborted ? "Gemini request timed out after retries" : "Gemini network request failed after retries");
     });
+    if (response === null) continue;
     if (!response.ok) {
       const retryAfter = Number(response.headers.get("retry-after"));
       await response.body?.cancel().catch(() => undefined);
-      if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
-        const delay = retryAfter > 0 ? Math.min(retryAfter * 1000, 15_000) : 1500 * 2 ** attempt;
+      if (attempt < MAX_GEMINI_RETRIES && (response.status === 429 || response.status >= 500)) {
+        const delay = retryAfter > 0 ? Math.min(retryAfter * 1000, 30_000) : Math.min(1500 * 2 ** attempt, 15_000);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -294,16 +302,28 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
   }
   const selectedBatches = allBatches;
   const moduleSummaries: RepositoryArchitecture["moduleSummaries"] = [];
-  for (let offset = 0; offset < selectedBatches.length; offset += 4) {
-    const group = selectedBatches.slice(offset, offset + 4);
+  const failedModules: string[] = [];
+  for (let offset = 0; offset < selectedBatches.length; offset += GEMINI_CONCURRENCY) {
+    const group = selectedBatches.slice(offset, offset + GEMINI_CONCURRENCY);
     const results = await Promise.allSettled(group.map(batch => summarizeBatch(batch.module, batch.text)));
-    for (const result of results) {
-      if (result.status === "rejected") throw result.reason;
-      moduleSummaries.push(result.value);
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index];
+      if (result.status === "fulfilled") moduleSummaries.push(result.value);
+      else {
+        failedModules.push(group[index].module);
+        console.error("[Gemini source batch exhausted retries]", JSON.stringify({
+          module: group[index].module,
+          reason: result.reason instanceof Error ? result.reason.message : "Unknown Gemini error",
+        }));
+      }
     }
   }
-  structured.coverage.contentBatches = selectedBatches.length;
-  structured.coverage.unprocessedTextFiles = 0;
+  if (moduleSummaries.length === 0) {
+    throw new Error("Gemini could not analyze any source-code batches after retries. No complete reading was generated.");
+  }
+  structured.coverage.contentBatches = moduleSummaries.length;
+  structured.coverage.unprocessedTextFiles = new Set(failedModules.map(module => module.split(" / ")[1]?.replace(/ \\[\\d+\\/\\d+\\]$/, "") ?? module)).size;
+  structured.coverage.failedBatches = failedModules.length;
   // Reduce the full set of source summaries hierarchically to keep synthesis within model context.
   let synthesisSummaries = moduleSummaries;
   while (JSON.stringify(synthesisSummaries).length > 60_000) {
@@ -316,7 +336,10 @@ async function buildArchitectureFromEntries(input: AnalysisInput, entries: Archi
     synthesisSummaries = next;
   }
   const unifiedSummary = await synthesizeArchitecture(structured, synthesisSummaries);
-  return { ...structured, moduleSummaries, unifiedSummary, synthesisMethod: "batched module summaries followed by one unified synthesis" };
+  const incompleteNotice = failedModules.length
+    ? `INCOMPLETE ANALYSIS: ${failedModules.length} of ${selectedBatches.length} source batches could not be analyzed after retries. Do not treat this reading as complete.\n\n`
+    : "";
+  return { ...structured, moduleSummaries, unifiedSummary: incompleteNotice + unifiedSummary, synthesisMethod: "batched module summaries followed by one unified synthesis" };
 }
 
 export async function analyzeRepositoryArchitecture(input: AnalysisInput): Promise<RepositoryArchitecture> {
