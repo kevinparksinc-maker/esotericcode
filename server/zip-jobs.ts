@@ -6,11 +6,11 @@ import { ZIP_UPLOAD_LIMIT } from "./repository-analysis";
 
 type Job = { state: "queued" | "running" | "completed" | "failed"; createdAt: number; updatedAt: number; message: string; result?: unknown; error?: string };
 const jobs = new Map<string, Job>();
-const MAX_ACTIVE_JOBS = 2;
+const MAX_ACTIVE_JOBS = 1;
 let active = 0;
 const queue: Array<{ id: string; name: string; archive: Buffer }> = [];
 function cleanup() {
-  for (const [id, job] of jobs) if (Date.now() - job.updatedAt > 2 * 60 * 60 * 1000) jobs.delete(id);
+  jobs.forEach((job, id) => { if (Date.now() - job.updatedAt > 2 * 60 * 60 * 1000) jobs.delete(id); });
 }
 function drain() {
   while (active < MAX_ACTIVE_JOBS && queue.length) {
