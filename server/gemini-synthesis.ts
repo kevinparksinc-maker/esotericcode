@@ -17,7 +17,7 @@ export async function synthesizeReadingWithGemini(
       languages: metrics.languages, files: metrics.fileCount, sourceFiles: metrics.sourceFileCount,
       tests: metrics.testFileCount, testRatio: metrics.testRatio,
       complexity: metrics.complexityLevel, complexitySignals: metrics.complexitySignals,
-      commitsLast30Days: metrics.recentCommitCount, contributors: metrics.contributorCount },
+      commitsLast30Days: metrics.historyAvailable === false ? null : metrics.recentCommitCount, contributors: metrics.historyAvailable === false ? null : metrics.contributorCount, historyAvailable: metrics.historyAvailable !== false },
     architecture: metrics.architecture ? {
       summary: metrics.architecture.unifiedSummary,
       coverage: metrics.architecture.coverage,
@@ -25,7 +25,9 @@ export async function synthesizeReadingWithGemini(
       entryPoints: metrics.architecture.entryPoints,
       maintenance: metrics.architecture.maintenanceMarkers,
       auditMethod: metrics.architecture.auditMethod,
-      auditFindings: metrics.architecture.auditFindings
+      auditFindings: metrics.architecture.auditFindings,
+      auditTruncated: metrics.architecture.auditTruncated,
+      auditCount: metrics.architecture.auditCount
     } : null,
     casting: metrics.castingRecord ? { algorithm: metrics.castingRecord.algorithm, sourceFingerprint: metrics.castingRecord.sourceFingerprint, tarotIndices: metrics.castingRecord.tarotIndices, tarotReversed: metrics.castingRecord.tarotReversed, ichingCoins: metrics.castingRecord.ichingCoins } : null,
     tarot: tarot.map(card => ({
