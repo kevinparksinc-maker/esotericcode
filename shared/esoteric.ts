@@ -3,7 +3,9 @@ export type TarotOrientation = "upright" | "reversed";
 export type KpPlanet = "Sun" | "Moon" | "Mars" | "Mercury" | "Jupiter" | "Venus" | "Saturn" | "Rahu" | "Ketu";
 export type RepositoryFileCategory = "source" | "test" | "config" | "documentation" | "manifest" | "migration" | "infrastructure" | "other";
 export type RepositoryAuditFinding = { rule: string; severity: "warning" | "info"; file: string; line: number; evidence: string; recommendation: string };
+export type CastingRecord = { algorithm: "code-seeded-sha256-v1"; sourceFingerprint: string; nonce: string; seed: string; tarotIndices: number[]; tarotReversed: boolean[]; ichingCoins: number[][]; primaryHexagram: number; relatingHexagram?: number };
 export type RepositoryArchitecture = {
+  sourceFingerprint?: string;
   auditFindings: RepositoryAuditFinding[];
   auditMethod: "offline heuristic code audit";
   analysisMode: "bounded full-tree architecture scan";
@@ -90,6 +92,7 @@ export type RepositoryMetrics = {
   complexityLevel: ComplexityLevel;
   complexityScore: number;
   complexitySignals: string[];
+  castingRecord?: CastingRecord;
   repositoryCreatedAt: string;
   fetchedAt: string;
   kpChart?: KpAstrologyChart;
