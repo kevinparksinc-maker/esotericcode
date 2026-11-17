@@ -91,7 +91,7 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
     stack.pop();
     active.delete(file);
   }
-  for (const file of outgoing.keys()) if (!visited.has(file)) walk(file);
+  for (const file of Array.from(outgoing.keys())) if (!visited.has(file)) walk(file);
   for (const finding of findings) {
     const base = finding.file.replace(/\.[^/.]+$/, "");
     finding.relatedFiles = Array.from(incoming.get(base) ?? []).slice(0, 12);
