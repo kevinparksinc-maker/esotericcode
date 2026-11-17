@@ -10,42 +10,49 @@ const importPattern = /(?:\b(?:import|export)\s+(?:[^"']*?\s+from\s+)?|\brequire
 export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
   const findings: RepositoryAuditFinding[] = [];
   const known = new Set(entries.map(e => e.path.replace(/\\/g, "/")));
+  const incoming = new Map<string, Set<string>>();
   function add(rule: string, severity: RepositoryAuditFinding["severity"], file: string, line: number, evidence: string, recommendation: string) {
-    if (findings.length >= 200) return;
-    findings.push({ rule, severity, file, line, evidence: evidence.slice(0, 180), recommendation });
+    if (findings.length >= 1000) return;
+    findings.push({ rule, severity, file, line, evidence: evidence.slice(0, 180), recommendation, status: "requires-verification" });
   }
   for (const entry of entries) {
     if (entry.category !== "source" && entry.category !== "config" && entry.category !== "manifest" && entry.category !== "test") continue;
     if (entry.content === undefined) continue;
-    const lines = entry.content.split(/\r?\n/);
+    // Preserve line positions while removing comments before searching for executable constructs.
+    const uncommented = entry.content.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/[^\n]*/gm, segment => segment.replace(/[^\n]/g, " "));
+    const lines = uncommented.split(/\r?\n/);
+    const originalLines = entry.content.split(/\r?\n/);
     if (sourceExt.test(entry.path)) {
       const imports = new RegExp(importPattern.source, "g");
       let match: RegExpExecArray | null;
-      while ((match = imports.exec(entry.content)) !== null) {
+      while ((match = imports.exec(uncommented)) !== null) {
         const target = match[1];
         if (!target.startsWith(".")) continue; // aliases and workspace imports need config resolution
         const base = path.normalize(path.join(path.dirname(entry.path), target));
+        if (!incoming.has(base)) incoming.set(base, new Set());
+        incoming.get(base)!.add(entry.path);
         const resolved = [base, ...candidates.map(ext => base + ext)].some(candidate => known.has(candidate));
         if (!resolved) {
-          const line = entry.content.slice(0, match.index).split("\n").length;
+          const line = uncommented.slice(0, match.index).split("\n").length;
           add("unresolved-relative-import", "warning", entry.path, line, target, "Verify the relative path and whether the target is present in the archive.");
         }
       }
     }
     for (let index = 0; index < lines.length; index++) {
       const text = lines[index];
+      const original = originalLines[index] ?? text;
       const line = index + 1;
       if (/\b(?:TODO|FIXME)\b/i.test(text) && !/https?:\/\//.test(text)) {
-        add("unfinished-work-marker", "info", entry.path, line, text.trim(), "Review the marked work; it is not automatically a defect.");
+        add("unfinished-work-marker", "info", entry.path, line, original.trim(), "Review the marked work; it is not automatically a defect.");
       }
       if (/\b(?:eval\s*\(|new\s+Function\s*\()/.test(text) && !/\/\/|\/\*/.test(text.trim().slice(0, 3))) {
-        add("dynamic-code-execution", "warning", entry.path, line, text.trim(), "Check whether untrusted input can reach dynamic execution.");
+        add("dynamic-code-execution", "warning", entry.path, line, original.trim(), "Check whether untrusted input can reach dynamic execution.");
       }
       if (/\bconsole\.(?:log|debug)\s*\(/.test(text) && !/\.test\.|\.spec\./.test(entry.path)) {
-        add("debug-logging", "info", entry.path, line, text.trim(), "Confirm logging avoids credentials and sensitive values.");
+        add("debug-logging", "info", entry.path, line, original.trim(), "Confirm logging avoids credentials and sensitive values.");
       }
       if (/\b(?:catch\s*\([^)]*\)\s*\{\s*\}|catch\s*\{\s*\})/.test(text)) {
-        add("empty-catch-block", "warning", entry.path, line, text.trim(), "Check whether a swallowed error hides a failed operation.");
+        add("empty-catch-block", "warning", entry.path, line, original.trim(), "Check whether a swallowed error hides a failed operation.");
       }
     }
     if (entry.path.endsWith("package.json")) {
@@ -56,6 +63,10 @@ export function auditRepository(entries: Entry[]): RepositoryAuditFinding[] {
         add("invalid-package-json", "warning", entry.path, 1, "package.json could not be parsed", "Validate JSON syntax.");
       }
     }
+  }
+  for (const finding of findings) {
+    const base = finding.file.replace(/\.[^/.]+$/, "");
+    finding.relatedFiles = Array.from(incoming.get(base) ?? []).slice(0, 12);
   }
   return findings.sort((a, b) => ({ warning: 0, info: 1 }[a.severity] - { warning: 0, info: 1 }[b.severity]));
 }
