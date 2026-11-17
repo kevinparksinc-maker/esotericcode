@@ -75,6 +75,11 @@ describe("repository architecture ingestion", () => {
     try {
       const metrics = await extractUploadedZipMetrics("fixture.zip", await buildFixtureZip());
       expect(metrics.source).toEqual({ type: "zip", label: "Uploaded ZIP archive", originalFileName: "fixture.zip" });
+      expect(metrics.historyAvailable).toBe(false);
+      expect(metrics.repositoryCreatedAt).toBe("");
+      expect(metrics.kpChart?.repositoryBirth.createdAt).toBe("");
+      expect(metrics.kpChart?.repositoryBirth.source).toContain("fingerprint");
+      expect(metrics.architecture?.sourceFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(metrics.architecture?.coverage.inspectedTextFiles).toBeGreaterThan(0);
       expect(metrics.architecture?.coverage.failedBatches).toBe(0);
       expect(metrics.architecture?.coverage.contentBatches).toBe(0);
